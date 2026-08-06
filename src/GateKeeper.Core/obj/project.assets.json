@@ -1,0 +1,97 @@
+{
+  "version": 4,
+  "targets": {
+    "net8.0": {
+      "GateKeeper.Shared/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "compile": {
+          "bin/placeholder/GateKeeper.Shared.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/GateKeeper.Shared.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "GateKeeper.Shared/1.0.0": {
+      "type": "project",
+      "path": "../GateKeeper.Shared/GateKeeper.Shared.csproj",
+      "msbuildProject": "../GateKeeper.Shared/GateKeeper.Shared.csproj"
+    }
+  },
+  "projectFileDependencyGroups": {
+    "net8.0": [
+      "GateKeeper.Shared >= 1.0.0"
+    ]
+  },
+  "packageFolders": {
+    "C:\\Users\\darre\\.nuget\\packages\\": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "D:\\Azure Ticketing App\\api\\src\\GateKeeper.Core\\GateKeeper.Core.csproj",
+      "projectName": "GateKeeper.Core",
+      "projectPath": "D:\\Azure Ticketing App\\api\\src\\GateKeeper.Core\\GateKeeper.Core.csproj",
+      "packagesPath": "C:\\Users\\darre\\.nuget\\packages\\",
+      "outputPath": "D:\\Azure Ticketing App\\api\\src\\GateKeeper.Core\\obj\\",
+      "projectStyle": "PackageReference",
+      "configFilePaths": [
+        "C:\\Users\\darre\\AppData\\Roaming\\NuGet\\NuGet.Config"
+      ],
+      "originalTargetFrameworks": [
+        "net8.0"
+      ],
+      "sources": {
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net8.0": {
+          "framework": "net8.0",
+          "targetAlias": "net8.0",
+          "projectReferences": {
+            "D:\\Azure Ticketing App\\api\\src\\GateKeeper.Shared\\GateKeeper.Shared.csproj": {
+              "projectPath": "D:\\Azure Ticketing App\\api\\src\\GateKeeper.Shared\\GateKeeper.Shared.csproj"
+            }
+          }
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
+      },
+      "SdkAnalysisLevel": "10.0.300"
+    },
+    "frameworks": {
+      "net8.0": {
+        "framework": "net8.0",
+        "targetAlias": "net8.0",
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "frameworkReferences": {
+          "Microsoft.NETCore.App": {
+            "privateAssets": "all"
+          }
+        },
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.302/PortableRuntimeIdentifierGraph.json"
+      }
+    }
+  }
+}

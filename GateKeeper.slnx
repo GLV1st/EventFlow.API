@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GateKeeper.Api/GateKeeper.Api.csproj" />
+    <Project Path="src/GateKeeper.Core/GateKeeper.Core.csproj" />
+    <Project Path="src/GateKeeper.Shared/GateKeeper.Shared.csproj" />
+    <Project Path="src/GateKeeper.Storage/GateKeeper.Storage.csproj" />
+  </Folder>
+</Solution>
