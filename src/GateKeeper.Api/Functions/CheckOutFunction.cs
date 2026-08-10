@@ -24,13 +24,19 @@ public class CheckOutFunction
         )]
         HttpRequestData req)
     {
+        // =====================================
+        // READ REQUEST
+        // =====================================
+
         var request =
             await req.ReadFromJsonAsync<CheckOutRequest>();
 
         if (request == null)
+        {
             return req.CreateResponse(
                 HttpStatusCode.BadRequest
             );
+        }
 
 
         // =====================================
@@ -94,32 +100,6 @@ public class CheckOutFunction
 
 
         // =====================================
-        // NOT CHECKED IN
-        // =====================================
-
-        if (!ticket.CheckedIn)
-        {
-            var response =
-                req.CreateResponse(
-                    HttpStatusCode.OK
-                );
-
-            await response.WriteAsJsonAsync(
-                new CheckOutResponse
-                {
-                    Status = "NOT_CHECKED_IN",
-                    Message = "Ticket has not been checked in",
-                    TicketNumber = ticket.RowKey,
-                    CustomerName = ticket.CustomerName,
-                    TicketType = ticket.TicketType
-                }
-            );
-
-            return response;
-        }
-
-
-        // =====================================
         // ALREADY CHECKED OUT
         // =====================================
 
@@ -146,12 +126,50 @@ public class CheckOutFunction
 
 
         // =====================================
+        // NOT CHECKED IN
+        // =====================================
+
+        if (!ticket.CheckedIn)
+        {
+            var response =
+                req.CreateResponse(
+                    HttpStatusCode.OK
+                );
+
+            await response.WriteAsJsonAsync(
+                new CheckOutResponse
+                {
+                    Status = "NOT_CHECKED_IN",
+                    Message = "Ticket has not been checked in",
+                    TicketNumber = ticket.RowKey,
+                    CustomerName = ticket.CustomerName,
+                    TicketType = ticket.TicketType
+                }
+            );
+
+            return response;
+        }
+
+
+        // =====================================
         // CHECK OUT TICKET
         // =====================================
 
+        ticket.CheckedIn = false;
         ticket.CheckedOut = true;
+
+        // Clear previous check-in timestamp
+        ticket.CheckedInAt = null;
+
+        // Record checkout time
         ticket.CheckedOutAt = DateTime.UtcNow;
+
         ticket.Updated = DateTime.UtcNow;
+
+
+        // =====================================
+        // SAVE
+        // =====================================
 
         await _tickets.UpdateTicketAsync(ticket);
 

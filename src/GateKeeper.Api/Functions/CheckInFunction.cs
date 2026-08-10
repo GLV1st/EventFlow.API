@@ -17,76 +17,161 @@ public class CheckInFunction
 
     [Function("CheckIn")]
     public async Task<HttpResponseData> Run(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "tickets/checkin")]
+        [HttpTrigger(
+            AuthorizationLevel.Anonymous,
+            "post",
+            Route = "tickets/checkin"
+        )]
         HttpRequestData req)
     {
-        var request = await req.ReadFromJsonAsync<CheckInRequest>();
+        // =====================================
+        // READ REQUEST
+        // =====================================
+
+        var request =
+            await req.ReadFromJsonAsync<CheckInRequest>();
 
         if (request == null)
-            return req.CreateResponse(HttpStatusCode.BadRequest);
+        {
+            return req.CreateResponse(
+                HttpStatusCode.BadRequest
+            );
+        }
 
-        var ticket = await _tickets.GetTicketAsync(
-            request.EventId,
-            request.TicketNumber);
+
+        // =====================================
+        // GET TICKET
+        // =====================================
+
+        var ticket =
+            await _tickets.GetTicketAsync(
+                request.EventId,
+                request.TicketNumber
+            );
+
+
+        // =====================================
+        // TICKET NOT FOUND
+        // =====================================
 
         if (ticket == null)
         {
-            var response = req.CreateResponse(HttpStatusCode.NotFound);
+            var response =
+                req.CreateResponse(
+                    HttpStatusCode.NotFound
+                );
 
-            await response.WriteAsJsonAsync(new CheckInResponse
-            {
-                Status = "NOT_FOUND",
-                Message = "Ticket not found"
-            });
+            await response.WriteAsJsonAsync(
+                new CheckInResponse
+                {
+                    Status = "NOT_FOUND",
+                    Message = "Ticket not found"
+                }
+            );
 
             return response;
         }
+
+
+        // =====================================
+        // CANCELLED
+        // =====================================
 
         if (ticket.Cancelled)
         {
-            var response = req.CreateResponse(HttpStatusCode.OK);
+            var response =
+                req.CreateResponse(
+                    HttpStatusCode.OK
+                );
 
-            await response.WriteAsJsonAsync(new CheckInResponse
-            {
-                Status = "CANCELLED",
-                Message = "Ticket cancelled"
-            });
+            await response.WriteAsJsonAsync(
+                new CheckInResponse
+                {
+                    Status = "CANCELLED",
+                    Message = "Ticket cancelled",
+                    TicketNumber = ticket.RowKey,
+                    CustomerName = ticket.CustomerName,
+                    TicketType = ticket.TicketType
+                }
+            );
 
             return response;
         }
+
+
+        // =====================================
+        // ALREADY CHECKED IN
+        // =====================================
 
         if (ticket.CheckedIn)
         {
-            var response = req.CreateResponse(HttpStatusCode.OK);
+            var response =
+                req.CreateResponse(
+                    HttpStatusCode.OK
+                );
 
-            await response.WriteAsJsonAsync(new CheckInResponse
-            {
-                Status = "ALREADY_CHECKED_IN",
-                Message = "Ticket already checked in",
-                TicketNumber = ticket.RowKey,
-                CustomerName = ticket.CustomerName,
-                TicketType = ticket.TicketType
-            });
+            await response.WriteAsJsonAsync(
+                new CheckInResponse
+                {
+                    Status = "ALREADY_CHECKED_IN",
+                    Message = "Ticket already checked in",
+                    TicketNumber = ticket.RowKey,
+                    CustomerName = ticket.CustomerName,
+                    TicketType = ticket.TicketType
+                }
+            );
 
             return response;
         }
 
+
+        // =====================================
+        // CHECK IN
+        // =====================================
+
         ticket.CheckedIn = true;
-        ticket.CheckedInAt = DateTime.UtcNow;
-        ticket.Updated = DateTime.UtcNow;
 
-        await _tickets.UpdateTicketAsync(ticket);
+        // A guest checking in is no longer checked out.
+        ticket.CheckedOut = false;
 
-        var ok = req.CreateResponse(HttpStatusCode.OK);
+        ticket.CheckedInAt =
+            DateTime.UtcNow;
 
-        await ok.WriteAsJsonAsync(new CheckInResponse
-        {
-            Status = "SUCCESS",
-            Message = "Welcome!",
-            TicketNumber = ticket.RowKey,
-            CustomerName = ticket.CustomerName,
-            TicketType = ticket.TicketType
-        });
+        // Clear the previous checkout time.
+        ticket.CheckedOutAt = null;
+
+        ticket.Updated =
+            DateTime.UtcNow;
+
+
+        // =====================================
+        // SAVE
+        // =====================================
+
+        await _tickets.UpdateTicketAsync(
+            ticket
+        );
+
+
+        // =====================================
+        // SUCCESS
+        // =====================================
+
+        var ok =
+            req.CreateResponse(
+                HttpStatusCode.OK
+            );
+
+        await ok.WriteAsJsonAsync(
+            new CheckInResponse
+            {
+                Status = "SUCCESS",
+                Message = "Welcome!",
+                TicketNumber = ticket.RowKey,
+                CustomerName = ticket.CustomerName,
+                TicketType = ticket.TicketType
+            }
+        );
 
         return ok;
     }
