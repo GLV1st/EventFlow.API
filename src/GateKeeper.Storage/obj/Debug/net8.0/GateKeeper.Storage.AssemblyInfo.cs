@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GateKeeper.Storage")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+344d0bf37d3d5def8bf135fa5c9cd1d45e3982a3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+89fecd4abbc604927eea8d3b6dbd728953768560")]
 [assembly: System.Reflection.AssemblyProductAttribute("GateKeeper.Storage")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GateKeeper.Storage")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
