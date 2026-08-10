@@ -16,3 +16,4 @@ D:\Azure Ticketing App\api\src\GateKeeper.Storage\obj\Debug\net8.0\GateKeeper.St
 D:\Azure Ticketing App\api\src\GateKeeper.Storage\obj\Debug\net8.0\refint\GateKeeper.Storage.dll
 D:\Azure Ticketing App\api\src\GateKeeper.Storage\obj\Debug\net8.0\GateKeeper.Storage.pdb
 D:\Azure Ticketing App\api\src\GateKeeper.Storage\obj\Debug\net8.0\ref\GateKeeper.Storage.dll
+D:\Azure Ticketing App\api\src\GateKeeper.Storage\obj\Debug\net8.0\GateKeeper.Storage.sourcelink.json

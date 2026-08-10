@@ -12,3 +12,4 @@ D:\Azure Ticketing App\api\src\GateKeeper.Shared\obj\Debug\net8.0\GateKeeper.Sha
 D:\Azure Ticketing App\api\src\GateKeeper.Shared\obj\Debug\net8.0\refint\GateKeeper.Shared.dll
 D:\Azure Ticketing App\api\src\GateKeeper.Shared\obj\Debug\net8.0\GateKeeper.Shared.pdb
 D:\Azure Ticketing App\api\src\GateKeeper.Shared\obj\Debug\net8.0\ref\GateKeeper.Shared.dll
+D:\Azure Ticketing App\api\src\GateKeeper.Shared\obj\Debug\net8.0\GateKeeper.Shared.sourcelink.json

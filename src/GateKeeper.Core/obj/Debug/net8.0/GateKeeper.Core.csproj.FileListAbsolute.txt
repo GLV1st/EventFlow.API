@@ -16,3 +16,4 @@ D:\Azure Ticketing App\api\src\GateKeeper.Core\obj\Debug\net8.0\GateKeeper.Core.
 D:\Azure Ticketing App\api\src\GateKeeper.Core\obj\Debug\net8.0\refint\GateKeeper.Core.dll
 D:\Azure Ticketing App\api\src\GateKeeper.Core\obj\Debug\net8.0\GateKeeper.Core.pdb
 D:\Azure Ticketing App\api\src\GateKeeper.Core\obj\Debug\net8.0\ref\GateKeeper.Core.dll
+D:\Azure Ticketing App\api\src\GateKeeper.Core\obj\Debug\net8.0\GateKeeper.Core.sourcelink.json

@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "GateKeeper.Core/1.0.0": {
+        "dependencies": {
+          "GateKeeper.Shared": "1.0.0"
+        },
+        "runtime": {
+          "GateKeeper.Core.dll": {}
+        }
+      },
+      "GateKeeper.Shared/1.0.0": {
+        "runtime": {
+          "GateKeeper.Shared.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "GateKeeper.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "GateKeeper.Shared/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
