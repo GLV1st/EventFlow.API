@@ -11,18 +11,25 @@ public class EventRepository : IEventRepository
 
     public EventRepository(IConfiguration configuration)
     {
-        var connectionString = configuration["StorageConnection"];
+        var connectionString =
+            configuration["StorageConnection"];
 
         _table = new TableClient(
             connectionString,
             "Events");
     }
 
+
+    // =====================================
+    // GET ALL EVENTS
+    // =====================================
+
     public async Task<List<EventEntity>> GetEventsAsync()
     {
         var events = new List<EventEntity>();
 
-        await foreach (var entity in _table.QueryAsync<EventEntity>())
+        await foreach (
+            var entity in _table.QueryAsync<EventEntity>())
         {
             events.Add(entity);
         }
@@ -30,11 +37,21 @@ public class EventRepository : IEventRepository
         return events;
     }
 
-    public async Task<EventEntity?> GetEventAsync(string eventId)
+
+    // =====================================
+    // GET EVENT
+    // =====================================
+
+    public async Task<EventEntity?> GetEventAsync(
+        string eventId)
     {
         try
         {
-            var result = await _table.GetEntityAsync<EventEntity>("EVENT", eventId);
+            var result =
+                await _table.GetEntityAsync<EventEntity>(
+                    "EVENT",
+                    eventId);
+
             return result.Value;
         }
         catch
@@ -43,8 +60,27 @@ public class EventRepository : IEventRepository
         }
     }
 
-    public async Task UpdateEventAsync(EventEntity entity)
+
+    // =====================================
+    // ADD EVENT
+    // =====================================
+
+    public async Task AddEventAsync(
+        EventEntity entity)
     {
-        await _table.UpdateEntityAsync(entity, entity.ETag);
+        await _table.AddEntityAsync(entity);
+    }
+
+
+    // =====================================
+    // UPDATE EVENT
+    // =====================================
+
+    public async Task UpdateEventAsync(
+        EventEntity entity)
+    {
+        await _table.UpdateEntityAsync(
+            entity,
+            entity.ETag);
     }
 }

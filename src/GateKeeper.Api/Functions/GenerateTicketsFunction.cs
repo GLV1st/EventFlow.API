@@ -20,68 +20,234 @@ public class GenerateTicketsFunction
         _tickets = tickets;
     }
 
+
     [Function("GenerateTickets")]
     public async Task<HttpResponseData> Run(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "tickets/generate")]
+        [HttpTrigger(
+            AuthorizationLevel.Anonymous,
+            "post",
+            Route = "tickets/generate"
+        )]
         HttpRequestData req)
     {
+        // =====================================
+        // READ REQUEST
+        // =====================================
+
         var request =
             await req.ReadFromJsonAsync<GenerateTicketsRequest>();
 
+
         if (request == null)
         {
-            return req.CreateResponse(HttpStatusCode.BadRequest);
+            return req.CreateResponse(
+                HttpStatusCode.BadRequest);
         }
 
-        var evt = await _events.GetEventAsync(request.EventId);
+
+        // =====================================
+        // VALIDATE
+        // =====================================
+
+        if (string.IsNullOrWhiteSpace(request.EventId))
+        {
+            return await ErrorResponse(
+                req,
+                HttpStatusCode.BadRequest,
+                "EventId is required.");
+        }
+
+
+        if (string.IsNullOrWhiteSpace(request.EventName))
+        {
+            return await ErrorResponse(
+                req,
+                HttpStatusCode.BadRequest,
+                "EventName is required.");
+        }
+
+
+        if (string.IsNullOrWhiteSpace(request.TicketPrefix))
+        {
+            return await ErrorResponse(
+                req,
+                HttpStatusCode.BadRequest,
+                "TicketPrefix is required.");
+        }
+
+
+        if (request.Quantity <= 0)
+        {
+            return await ErrorResponse(
+                req,
+                HttpStatusCode.BadRequest,
+                "Quantity must be greater than zero.");
+        }
+
+
+        // =====================================
+        // FIND EVENT
+        // =====================================
+
+        var evt =
+            await _events.GetEventAsync(
+                request.EventId);
+
+
+        // =====================================
+        // CREATE EVENT IF IT DOESN'T EXIST
+        // =====================================
 
         if (evt == null)
         {
-            return req.CreateResponse(HttpStatusCode.NotFound);
+            evt = new EventEntity
+            {
+                PartitionKey = "EVENT",
+                RowKey = request.EventId,
+
+                Name = request.EventName,
+
+                TicketPrefix =
+                    request.TicketPrefix.Trim()
+                        .ToUpperInvariant(),
+
+                NextTicketNumber = 1
+            };
+
+
+            await _events.AddEventAsync(evt);
         }
 
-        var response = new List<GenerateTicketsResponse>();
 
-        for (int i = 0; i < request.Quantity; i++)
+        // =====================================
+        // SAFETY CHECK
+        // =====================================
+
+        if (string.IsNullOrWhiteSpace(
+            evt.TicketPrefix))
+        {
+            return await ErrorResponse(
+                req,
+                HttpStatusCode.InternalServerError,
+                "Event has no ticket prefix.");
+        }
+
+
+        // =====================================
+        // GENERATE TICKETS
+        // =====================================
+
+        var response =
+            new List<GenerateTicketsResponse>();
+
+
+        for (
+            int i = 0;
+            i < request.Quantity;
+            i++)
         {
             var ticketNumber =
                 $"{evt.TicketPrefix}-{evt.NextTicketNumber:D6}";
 
-            var ticket = new TicketEntity
-            {
-                PartitionKey = request.EventId,
-                RowKey = ticketNumber,
 
-                OrderId = request.OrderId,
-                TicketType = request.TicketType,
+            var ticket =
+                new TicketEntity
+                {
+                    PartitionKey =
+                        request.EventId,
 
-                CustomerName = request.CustomerName,
-                CustomerEmail = request.CustomerEmail,
+                    RowKey =
+                        ticketNumber,
 
-                CheckedIn = false,
-                CheckedOut = false,
-                Cancelled = false,
+                    OrderId =
+                        request.OrderId,
 
-                Created = DateTime.UtcNow,
-                Updated = DateTime.UtcNow
-            };
+                    TicketType =
+                        request.TicketType,
 
-            await _tickets.AddTicketAsync(ticket);
+                    CustomerName =
+                        request.CustomerName,
 
-            response.Add(new GenerateTicketsResponse
-            {
-                TicketNumber = ticketNumber
-            });
+                    CustomerEmail =
+                        request.CustomerEmail,
+
+                    CheckedIn = false,
+
+                    CheckedOut = false,
+
+                    Cancelled = false,
+
+                    Created =
+                        DateTime.UtcNow,
+
+                    Updated =
+                        DateTime.UtcNow
+                };
+
+
+            await _tickets.AddTicketAsync(
+                ticket);
+
+
+            response.Add(
+                new GenerateTicketsResponse
+                {
+                    TicketNumber =
+                        ticketNumber
+                });
+
 
             evt.NextTicketNumber++;
         }
 
-        await _events.UpdateEventAsync(evt);
 
-        var http = req.CreateResponse(HttpStatusCode.OK);
+        // =====================================
+        // SAVE NEXT NUMBER
+        // =====================================
 
-        await http.WriteAsJsonAsync(response);
+        await _events.UpdateEventAsync(
+            evt);
+
+
+        // =====================================
+        // RESPONSE
+        // =====================================
+
+        var http =
+            req.CreateResponse(
+                HttpStatusCode.OK);
+
+
+        await http.WriteAsJsonAsync(
+            response);
+
 
         return http;
+    }
+
+
+    // =====================================
+    // ERROR RESPONSE
+    // =====================================
+
+    private static async Task<HttpResponseData>
+        ErrorResponse(
+            HttpRequestData req,
+            HttpStatusCode status,
+            string message)
+    {
+        var response =
+            req.CreateResponse(status);
+
+
+        await response.WriteAsJsonAsync(
+            new
+            {
+                Status = "ERROR",
+                Message = message
+            });
+
+
+        return response;
     }
 }

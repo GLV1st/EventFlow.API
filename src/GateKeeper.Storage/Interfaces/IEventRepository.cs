@@ -8,5 +8,7 @@ public interface IEventRepository
 
     Task<EventEntity?> GetEventAsync(string eventId);
 
+    Task AddEventAsync(EventEntity entity);
+
     Task UpdateEventAsync(EventEntity entity);
 }
