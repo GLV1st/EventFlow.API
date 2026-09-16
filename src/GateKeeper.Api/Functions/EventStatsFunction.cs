@@ -79,6 +79,35 @@ public class EventStatsFunction
 
 
         // =====================================
+        // ON-SITE TICKET TYPE BREAKDOWN
+        // =====================================
+
+        var onSiteUnder14 =
+            tickets.Count(t =>
+                t.CheckedIn &&
+                !t.CheckedOut &&
+                !t.Cancelled &&
+                string.Equals(
+                    t.TicketType?.Trim(),
+                    "Under 14 Yrs",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            );
+
+        var onSiteOver14 =
+            tickets.Count(t =>
+                t.CheckedIn &&
+                !t.CheckedOut &&
+                !t.Cancelled &&
+                string.Equals(
+                    t.TicketType?.Trim(),
+                    "Over 14 Yrs",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            );
+
+
+        // =====================================
         // RESPONSE
         // =====================================
 
@@ -99,6 +128,10 @@ public class EventStatsFunction
                 CheckedOut = checkedOut,
 
                 OnSite = onSite,
+
+                OnSiteUnder14 = onSiteUnder14,
+
+                OnSiteOver14 = onSiteOver14,
 
                 NotYetIn = notYetIn,
 
