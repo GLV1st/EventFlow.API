@@ -6,6 +6,8 @@ public class GenerateTicketsRequest
 
     public string EventName { get; set; } = "";
 
+    public string EventDate { get; set; } = "";
+
     public string TicketPrefix { get; set; } = "";
 
     public string OrderId { get; set; } = "";

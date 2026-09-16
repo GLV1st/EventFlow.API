@@ -165,6 +165,9 @@ public class GenerateTicketsFunction
                     TicketType =
                         request.TicketType,
 
+                    EventDate =
+                        request.EventDate,
+
                     CustomerName =
                         request.CustomerName,
 

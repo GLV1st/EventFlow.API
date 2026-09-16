@@ -6,12 +6,13 @@ namespace GateKeeper.Storage.Entities;
 public class TicketEntity : ITableEntity
 {
     // Azure Table Keys
-    public string PartitionKey { get; set; } = "";      // Event ID (WooCommerce Product ID)
-    public string RowKey { get; set; } = "";            // Ticket Number (e.g. COP-000001)
+    public string PartitionKey { get; set; } = "";
+    public string RowKey { get; set; } = "";
 
     // WooCommerce
     public string OrderId { get; set; } = "";
     public string TicketType { get; set; } = "";
+    public string EventDate { get; set; } = "";
 
     // Customer
     public string CustomerName { get; set; } = "";
