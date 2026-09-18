@@ -155,16 +155,25 @@ public class CheckOutFunction
         // CHECK OUT TICKET
         // =====================================
 
+        var checkoutTime = DateTime.UtcNow;
+
         ticket.CheckedIn = false;
         ticket.CheckedOut = true;
 
-        // Clear previous check-in timestamp
+        // Clear the current check-in timestamp.
+        // This does NOT affect FirstScanAt.
         ticket.CheckedInAt = null;
 
-        // Record checkout time
-        ticket.CheckedOutAt = DateTime.UtcNow;
+        // Record current checkout time.
+        ticket.CheckedOutAt = checkoutTime;
 
-        ticket.Updated = DateTime.UtcNow;
+        // IMPORTANT:
+        // FirstScanAt is deliberately NOT changed here.
+        //
+        // It permanently records the first successful
+        // entry scan for the ticket.
+
+        ticket.Updated = checkoutTime;
 
 
         // =====================================

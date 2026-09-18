@@ -129,19 +129,35 @@ public class CheckInFunction
         // CHECK IN
         // =====================================
 
+        var scanTime = DateTime.UtcNow;
+
         ticket.CheckedIn = true;
 
         // A guest checking in is no longer checked out.
         ticket.CheckedOut = false;
 
-        ticket.CheckedInAt =
-            DateTime.UtcNow;
+        // Current/latest check-in time.
+        ticket.CheckedInAt = scanTime;
 
-        // Clear the previous checkout time.
+        // Clear the current checkout time.
         ticket.CheckedOutAt = null;
 
-        ticket.Updated =
-            DateTime.UtcNow;
+        // =====================================
+        // RECORD FIRST SCAN ONLY
+        // =====================================
+
+        // FirstScanAt is permanent.
+        // It is only set the first time the ticket
+        // successfully checks in.
+        //
+        // Subsequent IN scans will NOT change it.
+
+        if (ticket.FirstScanAt == null)
+        {
+            ticket.FirstScanAt = scanTime;
+        }
+
+        ticket.Updated = scanTime;
 
 
         // =====================================
