@@ -25,6 +25,52 @@ public class EventStatsFunction
         string eventId)
     {
         // =====================================
+        // ADMIN AUTHENTICATION
+        // =====================================
+
+        var adminToken =
+            req.Headers.TryGetValues(
+                "X-GateKeeper-Admin",
+                out var tokenValues
+            )
+            ? tokenValues.FirstOrDefault()
+            : null;
+
+        var configuredPassword =
+            Environment.GetEnvironmentVariable(
+                "GateKeeperAdminPassword"
+            );
+
+        if (string.IsNullOrWhiteSpace(configuredPassword))
+        {
+            return await CreateErrorResponse(
+                req,
+                HttpStatusCode.InternalServerError,
+                "GateKeeperAdminPassword is not configured."
+            );
+        }
+
+        /*
+         * The admin authentication endpoint returns the
+         * configured admin password as the temporary token.
+         *
+         * This keeps the existing app simple while ensuring
+         * the stats endpoint itself cannot be accessed without
+         * admin authentication.
+         */
+
+        if (string.IsNullOrWhiteSpace(adminToken) ||
+            adminToken != configuredPassword)
+        {
+            return await CreateErrorResponse(
+                req,
+                HttpStatusCode.Unauthorized,
+                "Admin authentication required."
+            );
+        }
+
+
+        // =====================================
         // VALIDATE EVENT
         // =====================================
 
@@ -136,6 +182,30 @@ public class EventStatsFunction
                 NotYetIn = notYetIn,
 
                 Cancelled = cancelled
+            }
+        );
+
+        return response;
+    }
+
+
+    // =====================================
+    // ERROR RESPONSE
+    // =====================================
+
+    private static async Task<HttpResponseData> CreateErrorResponse(
+        HttpRequestData req,
+        HttpStatusCode status,
+        string message)
+    {
+        var response =
+            req.CreateResponse(status);
+
+        await response.WriteAsJsonAsync(
+            new
+            {
+                Authenticated = false,
+                Message = message
             }
         );
 
