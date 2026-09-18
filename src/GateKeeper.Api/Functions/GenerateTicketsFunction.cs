@@ -37,11 +37,12 @@ public class GenerateTicketsFunction
         var request =
             await req.ReadFromJsonAsync<GenerateTicketsRequest>();
 
-
         if (request == null)
         {
-            return req.CreateResponse(
-                HttpStatusCode.BadRequest);
+            return await ErrorResponse(
+                req,
+                HttpStatusCode.BadRequest,
+                "Invalid request.");
         }
 
 
@@ -103,12 +104,16 @@ public class GenerateTicketsFunction
             evt = new EventEntity
             {
                 PartitionKey = "EVENT",
-                RowKey = request.EventId,
 
-                Name = request.EventName,
+                RowKey =
+                    request.EventId,
+
+                Name =
+                    request.EventName,
 
                 TicketPrefix =
-                    request.TicketPrefix.Trim()
+                    request.TicketPrefix
+                        .Trim()
                         .ToUpperInvariant(),
 
                 NextTicketNumber = 1
@@ -134,6 +139,36 @@ public class GenerateTicketsFunction
 
 
         // =====================================
+        // RESERVE TICKET NUMBERS
+        // =====================================
+
+        int firstTicketNumber;
+
+        try
+        {
+            firstTicketNumber =
+                await _events.ReserveTicketNumbersAsync(
+                    request.EventId,
+                    request.Quantity);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                "FAILED TO RESERVE TICKET NUMBERS"
+            );
+
+            Console.WriteLine(
+                ex.ToString()
+            );
+
+            return await ErrorResponse(
+                req,
+                HttpStatusCode.InternalServerError,
+                "Unable to reserve ticket numbers.");
+        }
+
+
+        // =====================================
         // GENERATE TICKETS
         // =====================================
 
@@ -147,8 +182,12 @@ public class GenerateTicketsFunction
             i++)
         {
             var ticketNumber =
-                $"{evt.TicketPrefix}-{evt.NextTicketNumber:D6}";
+                $"{evt.TicketPrefix}-{(firstTicketNumber + i):D6}";
 
+
+            // =====================================
+            // CREATE TICKET
+            // =====================================
 
             var ticket =
                 new TicketEntity
@@ -176,9 +215,15 @@ public class GenerateTicketsFunction
 
                     CheckedIn = false,
 
+                    CheckedInAt = null,
+
                     CheckedOut = false,
 
+                    CheckedOutAt = null,
+
                     Cancelled = false,
+
+                    FirstScanAt = null,
 
                     Created =
                         DateTime.UtcNow,
@@ -187,6 +232,10 @@ public class GenerateTicketsFunction
                         DateTime.UtcNow
                 };
 
+
+            // =====================================
+            // SAVE TICKET
+            // =====================================
 
             await _tickets.AddTicketAsync(
                 ticket);
@@ -198,18 +247,7 @@ public class GenerateTicketsFunction
                     TicketNumber =
                         ticketNumber
                 });
-
-
-            evt.NextTicketNumber++;
         }
-
-
-        // =====================================
-        // SAVE NEXT NUMBER
-        // =====================================
-
-        await _events.UpdateEventAsync(
-            evt);
 
 
         // =====================================

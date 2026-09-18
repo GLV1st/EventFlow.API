@@ -119,6 +119,36 @@ public class GeneratePhysicalTicketsFunction
 
 
         // =====================================
+        // RESERVE TICKET NUMBERS
+        // =====================================
+
+        int firstTicketNumber;
+
+        try
+        {
+            firstTicketNumber =
+                await _events.ReserveTicketNumbersAsync(
+                    request.EventId,
+                    request.Quantity);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                "FAILED TO RESERVE PHYSICAL TICKET NUMBERS"
+            );
+
+            Console.WriteLine(
+                ex.ToString()
+            );
+
+            return await ErrorResponse(
+                req,
+                HttpStatusCode.InternalServerError,
+                "Unable to reserve ticket numbers.");
+        }
+
+
+        // =====================================
         // GENERATE PHYSICAL TICKETS
         // =====================================
 
@@ -131,11 +161,11 @@ public class GeneratePhysicalTicketsFunction
             i < request.Quantity;
             i++)
         {
-            // Use the existing event ticket prefix
-            // and the existing next ticket number.
+            // Use the number that was safely reserved
+            // for this request.
 
             var ticketNumber =
-                $"{evt.TicketPrefix}-{evt.NextTicketNumber:D6}";
+                $"{evt.TicketPrefix}-{(firstTicketNumber + i):D6}";
 
 
             // =====================================
@@ -145,12 +175,9 @@ public class GeneratePhysicalTicketsFunction
             var ticket =
                 new TicketEntity
                 {
-                    // The EventId is the partition.
                     PartitionKey =
                         request.EventId,
 
-                    // The physical ticket number is
-                    // the unique row key.
                     RowKey =
                         ticketNumber,
 
@@ -161,18 +188,12 @@ public class GeneratePhysicalTicketsFunction
                     TicketType =
                         request.TicketType,
 
-                    // EventEntity does not currently
-                    // contain an EventDate.
                     EventDate = "",
 
-                    // No customer is known when the
-                    // physical ticket is generated.
                     CustomerName = "",
 
                     CustomerEmail = "",
 
-                    // Physical ticket has not yet
-                    // been used.
                     CheckedIn = false,
 
                     CheckedInAt = null,
@@ -183,8 +204,8 @@ public class GeneratePhysicalTicketsFunction
 
                     Cancelled = false,
 
-                    // This will only be populated when
-                    // the ticket is actually scanned.
+                    // Empty until the ticket is
+                    // actually scanned at the event.
                     FirstScanAt = null,
 
                     Created =
@@ -204,7 +225,7 @@ public class GeneratePhysicalTicketsFunction
 
 
             // =====================================
-            // ADD TICKET TO RESPONSE
+            // ADD TO RESPONSE
             // =====================================
 
             response.Add(
@@ -213,22 +234,7 @@ public class GeneratePhysicalTicketsFunction
                     TicketNumber =
                         ticketNumber
                 });
-
-
-            // =====================================
-            // MOVE TO NEXT NUMBER
-            // =====================================
-
-            evt.NextTicketNumber++;
         }
-
-
-        // =====================================
-        // SAVE NEXT AVAILABLE NUMBER
-        // =====================================
-
-        await _events.UpdateEventAsync(
-            evt);
 
 
         // =====================================
