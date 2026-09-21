@@ -3,6 +3,7 @@ using Azure.Communication.Email;
 using GateKeeper.Shared.DTOs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Net.Mime;
 
@@ -10,6 +11,14 @@ namespace GateKeeper.Api.Functions;
 
 public class EmailPhysicalTicketsFunction
 {
+    private readonly ILogger<EmailPhysicalTicketsFunction> _logger;
+
+    public EmailPhysicalTicketsFunction(
+        ILogger<EmailPhysicalTicketsFunction> logger)
+    {
+        _logger = logger;
+    }
+
     [Function("EmailPhysicalTickets")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
@@ -19,372 +28,209 @@ public class EmailPhysicalTicketsFunction
         )]
         HttpRequestData req)
     {
-        // =====================================
-        // READ REQUEST
-        // =====================================
-
-        var request =
-            await req.ReadFromJsonAsync<
-                EmailPhysicalTicketsRequest>();
-
-
-        if (request == null)
-        {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "Invalid request.");
-        }
-
-
-        // =====================================
-        // VALIDATE EMAIL
-        // =====================================
-
-        if (string.IsNullOrWhiteSpace(
-            request.Email))
-        {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "Email address is required.");
-        }
-
-
-        if (!IsValidEmail(
-            request.Email))
-        {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "Invalid email address.");
-        }
-
-
-        // =====================================
-        // VALIDATE EVENT
-        // =====================================
-
-        if (string.IsNullOrWhiteSpace(
-            request.EventId))
-        {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "EventId is required.");
-        }
-
-
-        if (string.IsNullOrWhiteSpace(
-            request.EventName))
-        {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "EventName is required.");
-        }
-
-
-        // =====================================
-        // VALIDATE TICKET RANGE
-        // =====================================
-
-        if (string.IsNullOrWhiteSpace(
-            request.TicketFrom))
-        {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "TicketFrom is required.");
-        }
-
-
-        if (string.IsNullOrWhiteSpace(
-            request.TicketTo))
-        {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "TicketTo is required.");
-        }
-
-
-        // =====================================
-        // VALIDATE PDF
-        // =====================================
-
-        if (string.IsNullOrWhiteSpace(
-            request.Pdf))
-        {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "PDF data is required.");
-        }
-
-
-        // =====================================
-        // GET AZURE SETTINGS
-        // =====================================
-
-        var connectionString =
-            Environment.GetEnvironmentVariable(
-                "COMMUNICATION_SERVICES_CONNECTION_STRING");
-
-
-        var sender =
-            Environment.GetEnvironmentVariable(
-                "COMMUNICATION_SERVICES_SENDER");
-
-
-        if (string.IsNullOrWhiteSpace(
-            connectionString))
-        {
-            Console.WriteLine(
-                "COMMUNICATION_SERVICES_CONNECTION_STRING is missing."
-            );
-
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.InternalServerError,
-                "Email service connection is not configured.");
-        }
-
-
-        if (string.IsNullOrWhiteSpace(
-            sender))
-        {
-            Console.WriteLine(
-                "COMMUNICATION_SERVICES_SENDER is missing."
-            );
-
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.InternalServerError,
-                "Email sender is not configured.");
-        }
-
-
-        // =====================================
-        // CONVERT PDF
-        // =====================================
-
-        byte[] pdfBytes;
-
         try
         {
-            pdfBytes =
-                ConvertPdfToBytes(
-                    request.Pdf);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(
-                "PDF conversion failed:"
+            var request =
+                await req.ReadFromJsonAsync<EmailPhysicalTicketsRequest>();
+
+            if (request == null)
+            {
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Invalid request."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Email))
+            {
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Email address is required."
+                );
+            }
+
+            if (!IsValidEmail(request.Email))
+            {
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Invalid email address."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.EventId))
+            {
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Event ID is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.EventName))
+            {
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Event name is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.TicketFrom))
+            {
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Starting ticket number is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.TicketTo))
+            {
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Ending ticket number is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Pdf))
+            {
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "PDF data is required."
+                );
+            }
+
+            var connectionString =
+                Environment.GetEnvironmentVariable(
+                    "COMMUNICATION_SERVICES_CONNECTION_STRING");
+
+            var sender =
+                Environment.GetEnvironmentVariable(
+                    "COMMUNICATION_SERVICES_SENDER");
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                _logger.LogError(
+                    "COMMUNICATION_SERVICES_CONNECTION_STRING application setting is missing.");
+
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.InternalServerError,
+                    "Email service connection is not configured."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(sender))
+            {
+                _logger.LogError(
+                    "COMMUNICATION_SERVICES_SENDER application setting is missing.");
+
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.InternalServerError,
+                    "Email sender is not configured."
+                );
+            }
+
+            byte[] pdfBytes;
+
+            try
+            {
+                pdfBytes = ConvertPdfToBytes(request.Pdf);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to decode the supplied PDF.");
+
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "The supplied PDF could not be decoded."
+                );
+            }
+
+            // Keep the attachment size sensible.
+            const int maxPdfSize = 7 * 1024 * 1024;
+
+            if (pdfBytes.Length > maxPdfSize)
+            {
+                return ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "The PDF is too large to email. Please select a smaller ticket range."
+                );
+            }
+
+            _logger.LogInformation(
+                "Preparing physical ticket email. Recipient: {Email}, Sender: {Sender}, Event: {EventId}, Tickets: {TicketFrom} to {TicketTo}, PDF size: {PdfSize} bytes",
+                request.Email,
+                sender,
+                request.EventId,
+                request.TicketFrom,
+                request.TicketTo,
+                pdfBytes.Length
             );
 
-            Console.WriteLine(
-                ex.ToString()
-            );
-
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "Invalid PDF data.");
-        }
-
-
-        if (pdfBytes.Length == 0)
-        {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "PDF is empty.");
-        }
-
-
-        // =====================================
-        // PROTECT AGAINST HUGE EMAILS
-        // =====================================
-
-        // Azure Communication Services has
-        // message-size limitations.
-        //
-        // Keep a sensible limit here so that
-        // accidentally selecting thousands of
-        // tickets doesn't create an enormous
-        // email request.
-
-        const int maxPdfSize =
-            7 * 1024 * 1024;
-
-
-        if (pdfBytes.Length > maxPdfSize)
-        {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "The selected tickets create a PDF that is too large to email. Select a smaller range.");
-        }
-
-
-        // =====================================
-        // CREATE EMAIL CLIENT
-        // =====================================
-
-        try
-        {
             var emailClient =
-                new EmailClient(
-                    connectionString);
-
-
-            // =================================
-            // EMAIL CONTENT
-            // =================================
+                new EmailClient(connectionString);
 
             var subject =
                 $"{request.EventName} - Physical Tickets";
 
-
             var plainText =
                 $"""
-                Please find attached the physical tickets for:
+                GateKeeper Physical Tickets
 
                 Event: {request.EventName}
                 Ticket Type: {request.TicketType}
                 Tickets: {request.TicketFrom} to {request.TicketTo}
 
-                These tickets were generated by GateKeeper.
+                The requested physical tickets are attached to this email.
                 """;
-
 
             var html =
                 $"""
                 <html>
-                <body style="font-family:Arial,Helvetica,sans-serif;">
-
-                    <h2>
-                        GateKeeper Physical Tickets
-                    </h2>
+                <body style="font-family:Arial,sans-serif;">
+                    <h2>GateKeeper Physical Tickets</h2>
 
                     <p>
-                        Please find your physical tickets attached.
+                        <strong>Event:</strong>
+                        {System.Net.WebUtility.HtmlEncode(request.EventName)}
                     </p>
 
-                    <table
-                        style="
-                            border-collapse:collapse;
-                            margin-top:20px;
-                        "
-                    >
-
-                        <tr>
-
-                            <td
-                                style="
-                                    padding:8px 15px;
-                                    font-weight:bold;
-                                "
-                            >
-                                Event
-                            </td>
-
-                            <td
-                                style="
-                                    padding:8px 15px;
-                                "
-                            >
-                                {System.Net.WebUtility.HtmlEncode(
-                                    request.EventName)}
-                            </td>
-
-                        </tr>
-
-                        <tr>
-
-                            <td
-                                style="
-                                    padding:8px 15px;
-                                    font-weight:bold;
-                                "
-                            >
-                                Ticket Type
-                            </td>
-
-                            <td
-                                style="
-                                    padding:8px 15px;
-                                "
-                            >
-                                {System.Net.WebUtility.HtmlEncode(
-                                    request.TicketType)}
-                            </td>
-
-                        </tr>
-
-                        <tr>
-
-                            <td
-                                style="
-                                    padding:8px 15px;
-                                    font-weight:bold;
-                                "
-                            >
-                                Tickets
-                            </td>
-
-                            <td
-                                style="
-                                    padding:8px 15px;
-                                "
-                            >
-                                {System.Net.WebUtility.HtmlEncode(
-                                    request.TicketFrom)}
-                                -
-                                {System.Net.WebUtility.HtmlEncode(
-                                    request.TicketTo)}
-                            </td>
-
-                        </tr>
-
-                    </table>
-
-
-                    <p
-                        style="
-                            margin-top:25px;
-                            color:#666;
-                        "
-                    >
-                        Generated by GateKeeper.
+                    <p>
+                        <strong>Ticket Type:</strong>
+                        {System.Net.WebUtility.HtmlEncode(request.TicketType)}
                     </p>
 
+                    <p>
+                        <strong>Tickets:</strong>
+                        {System.Net.WebUtility.HtmlEncode(request.TicketFrom)}
+                        to
+                        {System.Net.WebUtility.HtmlEncode(request.TicketTo)}
+                    </p>
+
+                    <p>
+                        The requested physical tickets are attached to this email.
+                    </p>
+
+                    <p>
+                        <strong>GateKeeper</strong>
+                    </p>
                 </body>
                 </html>
                 """;
 
-
-            var emailContent =
-                new EmailContent(
-                    subject)
-                {
-                    PlainText =
-                        plainText,
-
-                    Html =
-                        html
-                };
-
-
-            // =================================
-            // RECIPIENT
-            // =================================
-
             var recipient =
-                new EmailAddress(
-                    request.Email);
-
+                new EmailAddress(request.Email);
 
             var recipients =
                 new EmailRecipients(
@@ -393,170 +239,113 @@ public class EmailPhysicalTicketsFunction
                         recipient
                     });
 
-
-            // =================================
-            // EMAIL MESSAGE
-            // =================================
+            var emailContent =
+                new EmailContent(subject)
+                {
+                    PlainText = plainText,
+                    Html = html
+                };
 
             var emailMessage =
                 new EmailMessage(
-                    sender,
-                    recipients,
-                    emailContent);
-
-
-            // =================================
-            // PDF ATTACHMENT
-            // =================================
+                    senderAddress: sender,
+                    recipients: recipients,
+                    content: emailContent);
 
             var attachment =
                 new EmailAttachment(
                     "GateKeeper-Physical-Tickets.pdf",
                     MediaTypeNames.Application.Pdf,
-                    BinaryData.FromBytes(
-                        pdfBytes));
+                    BinaryData.FromBytes(pdfBytes));
 
+            emailMessage.Attachments.Add(attachment);
 
-            emailMessage.Attachments.Add(
-                attachment);
-
-
-            // =================================
-            // SEND EMAIL
-            // =================================
+            _logger.LogInformation(
+                "Sending physical ticket email to {Email} from {Sender}",
+                request.Email,
+                sender
+            );
 
             var operation =
                 await emailClient.SendAsync(
                     Azure.WaitUntil.Completed,
                     emailMessage);
 
-
-            Console.WriteLine(
-                $"Physical ticket email sent. Operation ID: {operation.Id}"
+            _logger.LogInformation(
+                "Azure Communication Services email send completed. OperationId: {OperationId}",
+                operation.Id
             );
 
-
-            // =================================
-            // SUCCESS
-            // =================================
-
             var response =
-                req.CreateResponse(
-                    HttpStatusCode.OK);
-
+                req.CreateResponse(HttpStatusCode.OK);
 
             await response.WriteAsJsonAsync(
                 new
                 {
-                    Status = "SUCCESS",
-
-                    Message =
-                        "Physical ticket PDF emailed successfully.",
-
-                    Email =
-                        request.Email,
-
-                    TicketFrom =
-                        request.TicketFrom,
-
-                    TicketTo =
-                        request.TicketTo,
-
-                    OperationId =
-                        operation.Id
+                    Status = "OK",
+                    Message = "Physical tickets emailed successfully.",
+                    Email = request.Email,
+                    TicketFrom = request.TicketFrom,
+                    TicketTo = request.TicketTo,
+                    OperationId = operation.Id
                 });
-
 
             return response;
         }
         catch (RequestFailedException ex)
         {
-            Console.WriteLine(
-                "Azure Communication Services email failed:"
-            );
+            _logger.LogError(
+                ex,
+                "Azure Communication Services email failed. Status: {Status}, ErrorCode: {ErrorCode}, Message: {Message}",
+                ex.Status,
+                ex.ErrorCode,
+                ex.Message);
 
-            Console.WriteLine(
-                ex.ToString()
-            );
-
-
-            return await ErrorResponse(
+            return ErrorResponse(
                 req,
                 HttpStatusCode.BadGateway,
-                "Azure email service failed to send the message.");
+                $"Azure email service failed. Status: {ex.Status}, ErrorCode: {ex.ErrorCode}, Message: {ex.Message}"
+            );
         }
         catch (Exception ex)
         {
-            Console.WriteLine(
-                "Physical ticket email failed:"
-            );
+            _logger.LogError(
+                ex,
+                "Unexpected error while sending physical ticket email.");
 
-            Console.WriteLine(
-                ex.ToString()
-            );
-
-
-            return await ErrorResponse(
+            return ErrorResponse(
                 req,
                 HttpStatusCode.InternalServerError,
-                "Unable to send the physical ticket email.");
+                $"Unexpected email error: {ex.Message}"
+            );
         }
     }
 
-
-    // =====================================
-    // PDF CONVERSION
-    // =====================================
-
-    private static byte[] ConvertPdfToBytes(
-        string pdfData)
+    private static byte[] ConvertPdfToBytes(string pdfData)
     {
-        // The browser sends the PDF as:
+        var base64 = pdfData;
 
-        // data:application/pdf;base64,AAAA...
-
-        // Remove the data URI prefix.
-
-        var commaIndex =
-            pdfData.IndexOf(',');
-
+        var commaIndex = base64.IndexOf(',');
 
         if (commaIndex >= 0)
         {
-            pdfData =
-                pdfData[
-                    (commaIndex + 1)..];
+            base64 = base64[(commaIndex + 1)..];
         }
 
+        base64 = base64.Trim();
 
-        // Remove whitespace.
-
-        pdfData =
-            pdfData.Trim();
-
-
-        return Convert.FromBase64String(
-            pdfData);
+        return Convert.FromBase64String(base64);
     }
 
-
-    // =====================================
-    // EMAIL VALIDATION
-    // =====================================
-
-    private static bool IsValidEmail(
-        string email)
+    private static bool IsValidEmail(string email)
     {
         try
         {
-            var address =
-                new System.Net.Mail.MailAddress(
-                    email);
+            var address = new System.Net.Mail.MailAddress(email);
 
-            return
-                address.Address.Equals(
-                    email,
-                    StringComparison.OrdinalIgnoreCase);
+            return address.Address.Equals(
+                email,
+                StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
@@ -564,39 +353,22 @@ public class EmailPhysicalTicketsFunction
         }
     }
 
-
-    // =====================================
-    // ERROR RESPONSE
-    // =====================================
-
-    private static async Task<HttpResponseData>
-        ErrorResponse(
-            HttpRequestData req,
-            HttpStatusCode status,
-            string message)
+    private static HttpResponseData ErrorResponse(
+        HttpRequestData req,
+        HttpStatusCode statusCode,
+        string message)
     {
-        var response =
-            req.CreateResponse(
-                status);
+        var response = req.CreateResponse(statusCode);
 
-
-        await response.WriteAsJsonAsync(
+        response.WriteAsJsonAsync(
             new
             {
                 Status = "ERROR",
-
-                Message =
-                    message
-            });
-
+                Message = message
+            }).GetAwaiter().GetResult();
 
         return response;
     }
-
-
-    // =====================================
-    // REQUEST MODEL
-    // =====================================
 
     private class EmailPhysicalTicketsRequest
     {
