@@ -11,7 +11,7 @@ public class AdminAuthFunction
         [HttpTrigger(
             AuthorizationLevel.Anonymous,
             "post",
-            Route = "admin/auth"
+            Route = "event-auth"
         )]
         HttpRequestData req)
     {
