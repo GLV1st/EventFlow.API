@@ -1,7 +1,6 @@
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using System.Net;
-using System.Text.Json;
 
 namespace GateKeeper.Api.Functions;
 
@@ -26,14 +25,21 @@ public class AuthFunction
                 req,
                 HttpStatusCode.BadRequest,
                 false,
+                false,
                 "Password is required."
             );
         }
+
+
+        // =====================================================
+        // MAIN GATEKEEPER PASSWORD
+        // =====================================================
 
         var configuredPassword =
             Environment.GetEnvironmentVariable(
                 "GateKeeperPassword"
             );
+
 
         if (string.IsNullOrWhiteSpace(configuredPassword))
         {
@@ -41,25 +47,76 @@ public class AuthFunction
                 req,
                 HttpStatusCode.InternalServerError,
                 false,
+                false,
                 "GateKeeperPassword is not configured."
             );
         }
 
-        if (request.Password != configuredPassword)
+
+        // =====================================================
+        // ADMIN PASSWORD
+        // =====================================================
+
+        var configuredAdminPassword =
+            Environment.GetEnvironmentVariable(
+                "GATEKEEPER_ADMIN_PASSWORD"
+            );
+
+
+        if (string.IsNullOrWhiteSpace(configuredAdminPassword))
         {
             return await CreateResponse(
                 req,
-                HttpStatusCode.Unauthorized,
+                HttpStatusCode.InternalServerError,
                 false,
-                "Incorrect password."
+                false,
+                "GATEKEEPER_ADMIN_PASSWORD is not configured."
             );
         }
 
+
+        // =====================================================
+        // CHECK MAIN PASSWORD
+        // =====================================================
+
+        if (request.Password == configuredPassword)
+        {
+            return await CreateResponse(
+                req,
+                HttpStatusCode.OK,
+                true,
+                false,
+                "Access granted."
+            );
+        }
+
+
+        // =====================================================
+        // CHECK ADMIN PASSWORD
+        // =====================================================
+
+        if (request.Password == configuredAdminPassword)
+        {
+            return await CreateResponse(
+                req,
+                HttpStatusCode.OK,
+                true,
+                true,
+                "Admin access granted."
+            );
+        }
+
+
+        // =====================================================
+        // INVALID PASSWORD
+        // =====================================================
+
         return await CreateResponse(
             req,
-            HttpStatusCode.OK,
-            true,
-            "Access granted."
+            HttpStatusCode.Unauthorized,
+            false,
+            false,
+            "Incorrect password."
         );
     }
 
@@ -68,6 +125,7 @@ public class AuthFunction
         HttpRequestData req,
         HttpStatusCode status,
         bool authenticated,
+        bool admin,
         string message)
     {
         var response =
@@ -77,6 +135,7 @@ public class AuthFunction
             new
             {
                 Authenticated = authenticated,
+                Admin = admin,
                 Message = message
             }
         );
