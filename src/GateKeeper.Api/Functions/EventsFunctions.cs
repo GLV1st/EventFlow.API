@@ -17,7 +17,11 @@ public class EventsFunction
 
     [Function("Events")]
     public async Task<HttpResponseData> Run(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "events")]
+        [HttpTrigger(
+            AuthorizationLevel.Anonymous,
+            "get",
+            Route = "events"
+        )]
         HttpRequestData req)
     {
         var events = await _repository.GetEventsAsync();
