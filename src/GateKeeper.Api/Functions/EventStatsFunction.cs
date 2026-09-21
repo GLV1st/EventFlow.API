@@ -38,7 +38,7 @@ public class EventStatsFunction
 
         var configuredPassword =
             Environment.GetEnvironmentVariable(
-                "GateKeeperAdminPassword"
+                "GATEKEEPER_ADMIN_PASSWORD"
             );
 
         if (string.IsNullOrWhiteSpace(configuredPassword))
@@ -46,7 +46,7 @@ public class EventStatsFunction
             return await CreateErrorResponse(
                 req,
                 HttpStatusCode.InternalServerError,
-                "GateKeeperAdminPassword is not configured."
+                "GATEKEEPER_ADMIN_PASSWORD is not configured."
             );
         }
 
