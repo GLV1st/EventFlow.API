@@ -29,10 +29,16 @@ public class AdminAuthFunction
             );
         }
 
+
+        // ============================================
+        // ADMIN PASSWORD FROM AZURE
+        // ============================================
+
         var configuredPassword =
             Environment.GetEnvironmentVariable(
-                "GateKeeperAdminPassword"
+                "GATEKEEPER_ADMIN_PASSWORD"
             );
+
 
         if (string.IsNullOrWhiteSpace(configuredPassword))
         {
@@ -40,9 +46,14 @@ public class AdminAuthFunction
                 req,
                 HttpStatusCode.InternalServerError,
                 false,
-                "GateKeeperAdminPassword is not configured."
+                "GATEKEEPER_ADMIN_PASSWORD is not configured."
             );
         }
+
+
+        // ============================================
+        // CHECK PASSWORD
+        // ============================================
 
         if (request.Password != configuredPassword)
         {
@@ -54,6 +65,11 @@ public class AdminAuthFunction
             );
         }
 
+
+        // ============================================
+        // SUCCESS
+        // ============================================
+
         return await CreateResponse(
             req,
             HttpStatusCode.OK,
@@ -61,6 +77,7 @@ public class AdminAuthFunction
             "Admin access granted."
         );
     }
+
 
     private static async Task<HttpResponseData> CreateResponse(
         HttpRequestData req,
