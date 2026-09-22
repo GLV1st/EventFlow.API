@@ -63,12 +63,13 @@ public class GeneratePhysicalTicketsFunction
         // TICKET TYPE
         // =====================================
         //
-        // COP Carnival uses:
+        // COP Carnival:
         //   Under 14 Yrs
         //   Over 14 Yrs
         //
-        // All other events have no ticket
-        // variation, so TicketType is blank.
+        // All other events:
+        //   No ticket variation.
+        //   TicketType is stored as blank.
         // =====================================
 
         var isCopCarnival =
@@ -76,22 +77,59 @@ public class GeneratePhysicalTicketsFunction
                 "COP-CARN",
                 StringComparison.OrdinalIgnoreCase);
 
-        if (
-            isCopCarnival &&
-            string.IsNullOrWhiteSpace(request.TicketType)
-        )
+
+        if (isCopCarnival)
         {
-            return await ErrorResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                "TicketType is required for COP Carnival.");
+            // Ticket type is mandatory for COP Carnival.
+
+            if (string.IsNullOrWhiteSpace(
+                request.TicketType))
+            {
+                return await ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "TicketType is required for COP Carnival.");
+            }
+
+
+            // Only these two ticket types are valid.
+
+            if (
+                !request.TicketType.Equals(
+                    "Under 14 Yrs",
+                    StringComparison.OrdinalIgnoreCase)
+                &&
+                !request.TicketType.Equals(
+                    "Over 14 Yrs",
+                    StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                return await ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Invalid COP Carnival ticket type. Use Under 14 Yrs or Over 14 Yrs.");
+            }
+
+
+            // Store the standard spelling.
+
+            if (request.TicketType.Equals(
+                "Under 14 Yrs",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                request.TicketType =
+                    "Under 14 Yrs";
+            }
+            else
+            {
+                request.TicketType =
+                    "Over 14 Yrs";
+            }
         }
-
-
-        // For non-COP events, make sure we store
-        // an empty ticket type rather than null.
-        if (!isCopCarnival)
+        else
         {
+            // All other events have NO ticket variation.
+
             request.TicketType = "";
         }
 
@@ -181,8 +219,7 @@ public class GeneratePhysicalTicketsFunction
             i < request.Quantity;
             i++)
         {
-            // Use the number that was safely reserved
-            // for this request.
+            // Use the number that was safely reserved.
 
             var ticketNumber =
                 $"{evt.TicketPrefix}-{(firstTicketNumber + i):D6}";
