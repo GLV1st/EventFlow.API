@@ -104,7 +104,7 @@ public class EventStatsFunction
             );
 
         // =====================================
-        // CREATE RESPONSE
+        // RESPONSE
         // =====================================
 
         var response =

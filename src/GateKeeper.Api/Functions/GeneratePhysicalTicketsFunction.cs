@@ -20,7 +20,6 @@ public class GeneratePhysicalTicketsFunction
         _tickets = tickets;
     }
 
-
     [Function("GeneratePhysicalTickets")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
@@ -61,15 +60,39 @@ public class GeneratePhysicalTicketsFunction
 
 
         // =====================================
-        // VALIDATE TICKET TYPE
+        // TICKET TYPE
+        // =====================================
+        //
+        // COP Carnival uses:
+        //   Under 14 Yrs
+        //   Over 14 Yrs
+        //
+        // All other events have no ticket
+        // variation, so TicketType is blank.
         // =====================================
 
-        if (string.IsNullOrWhiteSpace(request.TicketType))
+        var isCopCarnival =
+            request.EventId.Equals(
+                "COP-CARN",
+                StringComparison.OrdinalIgnoreCase);
+
+        if (
+            isCopCarnival &&
+            string.IsNullOrWhiteSpace(request.TicketType)
+        )
         {
             return await ErrorResponse(
                 req,
                 HttpStatusCode.BadRequest,
-                "TicketType is required.");
+                "TicketType is required for COP Carnival.");
+        }
+
+
+        // For non-COP events, make sure we store
+        // an empty ticket type rather than null.
+        if (!isCopCarnival)
+        {
+            request.TicketType = "";
         }
 
 
@@ -93,7 +116,6 @@ public class GeneratePhysicalTicketsFunction
         var evt =
             await _events.GetEventAsync(
                 request.EventId);
-
 
         if (evt == null)
         {
@@ -134,12 +156,10 @@ public class GeneratePhysicalTicketsFunction
         catch (Exception ex)
         {
             Console.WriteLine(
-                "FAILED TO RESERVE PHYSICAL TICKET NUMBERS"
-            );
+                "FAILED TO RESERVE PHYSICAL TICKET NUMBERS");
 
             Console.WriteLine(
-                ex.ToString()
-            );
+                ex.ToString());
 
             return await ErrorResponse(
                 req,
@@ -245,10 +265,8 @@ public class GeneratePhysicalTicketsFunction
             req.CreateResponse(
                 HttpStatusCode.OK);
 
-
         await http.WriteAsJsonAsync(
             response);
-
 
         return http;
     }
@@ -267,14 +285,12 @@ public class GeneratePhysicalTicketsFunction
         var response =
             req.CreateResponse(status);
 
-
         await response.WriteAsJsonAsync(
             new
             {
                 Status = "ERROR",
                 Message = message
             });
-
 
         return response;
     }
