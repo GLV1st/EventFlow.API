@@ -10,7 +10,6 @@ public class EventRepository : IEventRepository
 {
     private readonly TableClient _table;
 
-
     public EventRepository(IConfiguration configuration)
     {
         var connectionString =
@@ -104,6 +103,10 @@ public class EventRepository : IEventRepository
             );
 
             Console.WriteLine(
+                $"Next Trader Number: {result.Value.NextTraderNumber}"
+            );
+
+            Console.WriteLine(
                 $"ETag: {result.Value.ETag}"
             );
 
@@ -135,11 +138,6 @@ public class EventRepository : IEventRepository
                 "================================="
             );
 
-
-            // ---------------------------------
-            // Only 404 means event doesn't exist
-            // ---------------------------------
-
             if (ex.Status == 404)
             {
                 Console.WriteLine(
@@ -148,11 +146,6 @@ public class EventRepository : IEventRepository
 
                 return null;
             }
-
-
-            // ---------------------------------
-            // Anything else is a real error
-            // ---------------------------------
 
             throw;
         }
@@ -249,9 +242,12 @@ public class EventRepository : IEventRepository
         );
 
         Console.WriteLine(
-            $"ETag: {entity.ETag}"
+            $"Next Trader Number: {entity.NextTraderNumber}"
         );
 
+        Console.WriteLine(
+            $"ETag: {entity.ETag}"
+        );
 
         try
         {
@@ -316,13 +312,7 @@ public class EventRepository : IEventRepository
             );
         }
 
-
-        // =====================================
-        // RETRY FOR CONCURRENCY
-        // =====================================
-
         const int maxAttempts = 10;
-
 
         for (int attempt = 1;
              attempt <= maxAttempts;
@@ -330,10 +320,6 @@ public class EventRepository : IEventRepository
         {
             try
             {
-                // ---------------------------------
-                // Read the latest event
-                // ---------------------------------
-
                 var result =
                     await _table.GetEntityAsync<EventEntity>(
                         "EVENT",
@@ -342,42 +328,22 @@ public class EventRepository : IEventRepository
 
                 var evt = result.Value;
 
-
-                // ---------------------------------
-                // Reserve the current block
-                // ---------------------------------
-
                 var firstNumber =
                     evt.NextTicketNumber;
-
 
                 var nextNumber =
                     checked(
                         firstNumber + quantity
                     );
 
-
                 evt.NextTicketNumber =
                     nextNumber;
-
-
-                // ---------------------------------
-                // IMPORTANT:
-                //
-                // Use the ETag we received from the
-                // GET request.
-                //
-                // If another request changed the
-                // event after our GET, Azure returns
-                // HTTP 412 and we retry.
-                // ---------------------------------
 
                 await _table.UpdateEntityAsync(
                     evt,
                     result.Value.ETag,
                     TableUpdateMode.Replace
                 );
-
 
                 Console.WriteLine(
                     "================================="
@@ -411,20 +377,11 @@ public class EventRepository : IEventRepository
                     "================================="
                 );
 
-
-                // ---------------------------------
-                // SUCCESS
-                // ---------------------------------
-
                 return firstNumber;
             }
             catch (RequestFailedException ex)
                 when (ex.Status == 412)
             {
-                // =================================
-                // CONCURRENT UPDATE
-                // =================================
-
                 Console.WriteLine(
                     "================================="
                 );
@@ -453,21 +410,141 @@ public class EventRepository : IEventRepository
                     "================================="
                 );
 
-
-                // Small delay before retrying.
                 await Task.Delay(
                     50 * attempt
                 );
             }
         }
 
-
-        // =====================================
-        // FAILED AFTER RETRIES
-        // =====================================
-
         throw new InvalidOperationException(
             $"Unable to reserve ticket numbers for event '{eventId}' because of repeated concurrent updates."
+        );
+    }
+
+
+    // =====================================
+    // RESERVE TRADER NUMBER
+    // =====================================
+
+    public async Task<int> ReserveTraderNumberAsync(
+        string eventId)
+    {
+        if (string.IsNullOrWhiteSpace(eventId))
+        {
+            throw new ArgumentException(
+                "EventId is required.",
+                nameof(eventId)
+            );
+        }
+
+        const int maxAttempts = 10;
+
+        for (int attempt = 1;
+             attempt <= maxAttempts;
+             attempt++)
+        {
+            try
+            {
+                var result =
+                    await _table.GetEntityAsync<EventEntity>(
+                        "EVENT",
+                        eventId
+                    );
+
+                var evt = result.Value;
+
+                // ---------------------------------
+                // Protect against an existing event
+                // that does not yet have the new
+                // NextTraderNumber property.
+                // ---------------------------------
+
+                var traderNumber =
+                    evt.NextTraderNumber;
+
+                if (traderNumber < 1)
+                {
+                    traderNumber = 1;
+                }
+
+                evt.NextTraderNumber =
+                    checked(traderNumber + 1);
+
+                await _table.UpdateEntityAsync(
+                    evt,
+                    result.Value.ETag,
+                    TableUpdateMode.Replace
+                );
+
+                Console.WriteLine(
+                    "================================="
+                );
+
+                Console.WriteLine(
+                    "TRADER NUMBER RESERVED"
+                );
+
+                Console.WriteLine(
+                    $"Event ID: {eventId}"
+                );
+
+                Console.WriteLine(
+                    $"Trader Number: {traderNumber}"
+                );
+
+                Console.WriteLine(
+                    $"Next Trader Number: {evt.NextTraderNumber}"
+                );
+
+                Console.WriteLine(
+                    $"Attempt: {attempt}"
+                );
+
+                Console.WriteLine(
+                    "================================="
+                );
+
+                return traderNumber;
+            }
+            catch (RequestFailedException ex)
+                when (ex.Status == 412)
+            {
+                Console.WriteLine(
+                    "================================="
+                );
+
+                Console.WriteLine(
+                    "TRADER NUMBER CONCURRENCY CONFLICT"
+                );
+
+                Console.WriteLine(
+                    $"Event ID: {eventId}"
+                );
+
+                Console.WriteLine(
+                    $"Attempt: {attempt}"
+                );
+
+                Console.WriteLine(
+                    "Another request changed the event."
+                );
+
+                Console.WriteLine(
+                    "Retrying..."
+                );
+
+                Console.WriteLine(
+                    "================================="
+                );
+
+                await Task.Delay(
+                    50 * attempt
+                );
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Unable to reserve a trader number for event '{eventId}' because of repeated concurrent updates."
         );
     }
 }

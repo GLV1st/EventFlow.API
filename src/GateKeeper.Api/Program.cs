@@ -14,7 +14,9 @@ var builder = FunctionsApplication.CreateBuilder(args);
 
 builder.ConfigureFunctionsWebApplication();
 
-if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING")))
+if (!string.IsNullOrEmpty(
+    Environment.GetEnvironmentVariable(
+        "APPLICATIONINSIGHTS_CONNECTION_STRING")))
 {
     builder.Services
         .AddOpenTelemetry()
@@ -22,13 +24,56 @@ if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APPLICATIONINSIGHT
         .UseAzureMonitorExporter();
 }
 
-// Dependency Injection
-builder.Services.AddSingleton<IHealthService, HealthService>();
-builder.Services.AddSingleton<IEventRepository, EventRepository>();
-builder.Services.AddSingleton<ITicketRepository, TicketRepository>();
+
+// =====================================
+// WALLET SERVICES
+// =====================================
+
+var walletSettings =
+    GateKeeper.Api.Wallet.WalletSettings.FromEnvironment();
+
+builder.Services.AddSingleton(walletSettings);
+
+builder.Services.AddHttpClient("wallet");
+
+builder.Services.AddSingleton<
+    GateKeeper.Api.Wallet.AppleWalletService>();
+
+builder.Services.AddSingleton<
+    GateKeeper.Api.Wallet.GoogleWalletService>();
+
+
+// =====================================
+// DEPENDENCY INJECTION
+// =====================================
+
+builder.Services.AddSingleton<
+    IHealthService,
+    HealthService>();
+
+builder.Services.AddSingleton<
+    IEventRepository,
+    EventRepository>();
+
+builder.Services.AddSingleton<
+    ITicketRepository,
+    TicketRepository>();
+
+// NEW — Trader system
+builder.Services.AddSingleton<
+    ITraderRepository,
+    TraderRepository>();
+
+
+// =====================================
+// JSON
+// =====================================
+
 builder.Services.Configure<JsonOptions>(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy =
         System.Text.Json.JsonNamingPolicy.CamelCase;
 });
+
+
 builder.Build().Run();

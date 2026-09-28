@@ -51,4 +51,21 @@ public interface IEventRepository
     Task<int> ReserveTicketNumbersAsync(
         string eventId,
         int quantity);
+
+
+    // =====================================
+    // RESERVE TRADER NUMBER
+    // =====================================
+
+    // Atomically reserves the next trader number
+    // for an event.
+    //
+    // Returns the reserved trader number.
+    //
+    // Azure ETag concurrency protection ensures that
+    // two simultaneous trader bookings cannot receive
+    // the same number.
+
+    Task<int> ReserveTraderNumberAsync(
+        string eventId);
 }

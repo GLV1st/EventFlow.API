@@ -29,6 +29,9 @@ public class TicketEntity : ITableEntity
     public string CustomerName { get; set; } = "";
     public string CustomerEmail { get; set; } = "";
 
+    // Secret token used to authorise public Wallet links.
+    public string WalletToken { get; set; } = "";
+
 
     // =====================================
     // TICKET STATUS

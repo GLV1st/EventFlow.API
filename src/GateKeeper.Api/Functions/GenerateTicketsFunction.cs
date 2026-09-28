@@ -4,6 +4,7 @@ using GateKeeper.Storage.Interfaces;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using System.Net;
+using System.Security.Cryptography;
 
 namespace GateKeeper.Api.Functions;
 
@@ -213,6 +214,9 @@ public class GenerateTicketsFunction
                     CustomerEmail =
                         request.CustomerEmail,
 
+                    WalletToken =
+                        Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant(),
+
                     CheckedIn = false,
 
                     CheckedInAt = null,
@@ -245,7 +249,9 @@ public class GenerateTicketsFunction
                 new GenerateTicketsResponse
                 {
                     TicketNumber =
-                        ticketNumber
+                        ticketNumber,
+                    WalletToken =
+                        ticket.WalletToken
                 });
         }
 
