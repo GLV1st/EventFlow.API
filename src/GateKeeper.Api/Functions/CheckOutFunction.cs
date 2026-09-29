@@ -9,10 +9,14 @@ namespace GateKeeper.Api.Functions;
 public class CheckOutFunction
 {
     private readonly ITicketRepository _tickets;
+    private readonly ITraderRepository _traders;
 
-    public CheckOutFunction(ITicketRepository tickets)
+    public CheckOutFunction(
+        ITicketRepository tickets,
+        ITraderRepository traders)
     {
         _tickets = tickets;
+        _traders = traders;
     }
 
     [Function("CheckOut")]
@@ -38,9 +42,8 @@ public class CheckOutFunction
             );
         }
 
-
         // =====================================
-        // FIND TICKET
+        // FIND NORMAL TICKET
         // =====================================
 
         var ticket =
@@ -49,6 +52,123 @@ public class CheckOutFunction
                 request.TicketNumber
             );
 
+        // =====================================
+        // TRADER PASS FALLBACK
+        // =====================================
+        //
+        // Normal tickets always use the existing Tickets table.
+        // Only if no normal ticket is found AND the scanned value
+        // looks like a Trader Pass do we look in the Traders table.
+
+        if (ticket == null &&
+            request.TicketNumber.StartsWith(
+                "COP-TRADER-",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var trader =
+                await _traders.GetTraderAsync(
+                    request.EventId,
+                    request.TicketNumber
+                );
+
+            if (trader != null)
+            {
+                // Explicit event safety check.
+                if (!string.Equals(
+                        trader.EventId,
+                        request.EventId,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    var wrongEvent =
+                        req.CreateResponse(
+                            HttpStatusCode.NotFound
+                        );
+
+                    await wrongEvent.WriteAsJsonAsync(
+                        new CheckOutResponse
+                        {
+                            Status = "NOT_FOUND",
+                            Message = "Trader Pass is not valid for this event"
+                        }
+                    );
+
+                    return wrongEvent;
+                }
+
+                // Already checked out.
+                if (trader.CheckedOut)
+                {
+                    var response =
+                        req.CreateResponse(
+                            HttpStatusCode.OK
+                        );
+
+                    await response.WriteAsJsonAsync(
+                        new CheckOutResponse
+                        {
+                            Status = "ALREADY_CHECKED_OUT",
+                            Message = "Trader already checked out",
+                            TicketNumber = trader.TraderPassNumber,
+                            CustomerName = trader.ContactName,
+                            TicketType = trader.TraderType
+                        }
+                    );
+
+                    return response;
+                }
+
+                // Must have checked in first.
+                if (!trader.CheckedIn)
+                {
+                    var response =
+                        req.CreateResponse(
+                            HttpStatusCode.OK
+                        );
+
+                    await response.WriteAsJsonAsync(
+                        new CheckOutResponse
+                        {
+                            Status = "NOT_CHECKED_IN",
+                            Message = "Trader has not been checked in",
+                            TicketNumber = trader.TraderPassNumber,
+                            CustomerName = trader.ContactName,
+                            TicketType = trader.TraderType
+                        }
+                    );
+
+                    return response;
+                }
+
+                // Check out trader.
+                var checkoutTime = DateTime.UtcNow;
+
+                trader.CheckedIn = false;
+                trader.CheckedOut = true;
+                trader.CheckedInAt = null;
+                trader.CheckedOutAt = checkoutTime;
+                trader.Updated = checkoutTime;
+
+                await _traders.UpdateTraderAsync(trader);
+
+                var okTrader =
+                    req.CreateResponse(
+                        HttpStatusCode.OK
+                    );
+
+                await okTrader.WriteAsJsonAsync(
+                    new CheckOutResponse
+                    {
+                        Status = "SUCCESS",
+                        Message = "Trader checked out successfully",
+                        TicketNumber = trader.TraderPassNumber,
+                        CustomerName = trader.ContactName,
+                        TicketType = trader.TraderType
+                    }
+                );
+
+                return okTrader;
+            }
+        }
 
         // =====================================
         // TICKET NOT FOUND
@@ -71,7 +191,6 @@ public class CheckOutFunction
 
             return response;
         }
-
 
         // =====================================
         // CANCELLED
@@ -98,7 +217,6 @@ public class CheckOutFunction
             return response;
         }
 
-
         // =====================================
         // ALREADY CHECKED OUT
         // =====================================
@@ -123,7 +241,6 @@ public class CheckOutFunction
 
             return response;
         }
-
 
         // =====================================
         // NOT CHECKED IN
@@ -150,38 +267,23 @@ public class CheckOutFunction
             return response;
         }
 
-
         // =====================================
         // CHECK OUT TICKET
         // =====================================
 
-        var checkoutTime = DateTime.UtcNow;
+        var ticketCheckoutTime = DateTime.UtcNow;
 
         ticket.CheckedIn = false;
         ticket.CheckedOut = true;
-
-        // Clear the current check-in timestamp.
-        // This does NOT affect FirstScanAt.
         ticket.CheckedInAt = null;
-
-        // Record current checkout time.
-        ticket.CheckedOutAt = checkoutTime;
-
-        // IMPORTANT:
-        // FirstScanAt is deliberately NOT changed here.
-        //
-        // It permanently records the first successful
-        // entry scan for the ticket.
-
-        ticket.Updated = checkoutTime;
-
+        ticket.CheckedOutAt = ticketCheckoutTime;
+        ticket.Updated = ticketCheckoutTime;
 
         // =====================================
         // SAVE
         // =====================================
 
         await _tickets.UpdateTicketAsync(ticket);
-
 
         // =====================================
         // SUCCESS
