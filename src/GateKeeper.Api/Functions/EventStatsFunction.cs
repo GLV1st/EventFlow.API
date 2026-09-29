@@ -8,10 +8,14 @@ namespace GateKeeper.Api.Functions;
 public class EventStatsFunction
 {
     private readonly ITicketRepository _tickets;
+    private readonly ITraderRepository _traders;
 
-    public EventStatsFunction(ITicketRepository tickets)
+    public EventStatsFunction(
+        ITicketRepository tickets,
+        ITraderRepository traders)
     {
         _tickets = tickets;
+        _traders = traders;
     }
 
     [Function("EventStats")]
@@ -36,7 +40,7 @@ public class EventStatsFunction
         }
 
         // =====================================
-        // GET ALL TICKETS FOR EVENT
+        // GET NORMAL TICKETS
         // =====================================
 
         var tickets =
@@ -45,25 +49,41 @@ public class EventStatsFunction
             );
 
         // =====================================
-        // CALCULATE STATISTICS
+        // GET TRADER PASSES
         // =====================================
 
-        var total =
-            tickets.Count;
-
-        var checkedIn =
-            tickets.Count(t => t.CheckedIn);
-
-        var checkedOut =
-            tickets.Count(t => t.CheckedOut);
-
-        var onSite =
-            tickets.Count(t =>
-                t.CheckedIn &&
-                !t.CheckedOut
+        var traders =
+            await _traders.GetTradersByEventAsync(
+                eventId
             );
 
-        var notYetIn =
+        // =====================================
+        // NORMAL TICKET STATISTICS
+        // =====================================
+
+        var normalTickets =
+            tickets.Count;
+
+        var normalCheckedIn =
+            tickets.Count(t =>
+                t.CheckedIn &&
+                !t.Cancelled
+            );
+
+        var normalCheckedOut =
+            tickets.Count(t =>
+                t.CheckedOut &&
+                !t.Cancelled
+            );
+
+        var normalOnSite =
+            tickets.Count(t =>
+                t.CheckedIn &&
+                !t.CheckedOut &&
+                !t.Cancelled
+            );
+
+        var normalNotYetIn =
             tickets.Count(t =>
                 !t.CheckedIn &&
                 !t.CheckedOut &&
@@ -76,7 +96,7 @@ public class EventStatsFunction
             );
 
         // =====================================
-        // ON-SITE TICKET TYPE BREAKDOWN
+        // NORMAL TICKET TYPE BREAKDOWN
         // =====================================
 
         var onSiteUnder14 =
@@ -104,6 +124,84 @@ public class EventStatsFunction
             );
 
         // =====================================
+        // TRADER STATISTICS
+        // =====================================
+
+        var traderPasses =
+            traders.Count;
+
+        var traderPeopleExpected =
+            traders.Sum(t =>
+                Math.Max(0, t.NumberOfPeople)
+            );
+
+        var traderPeopleCheckedIn =
+            traders
+                .Where(t =>
+                    t.CheckedIn &&
+                    !t.CheckedOut
+                )
+                .Sum(t =>
+                    Math.Max(0, t.NumberOfPeople)
+                );
+
+        var traderPeopleCheckedOut =
+            traders
+                .Where(t =>
+                    t.CheckedOut
+                )
+                .Sum(t =>
+                    Math.Max(0, t.NumberOfPeople)
+                );
+
+        var traderPeopleNotYetIn =
+            traders
+                .Where(t =>
+                    !t.CheckedIn &&
+                    !t.CheckedOut
+                )
+                .Sum(t =>
+                    Math.Max(0, t.NumberOfPeople)
+                );
+
+        // =====================================
+        // COMBINED PASS / TICKET TOTALS
+        // =====================================
+
+        // One trader pass counts as ONE pass,
+        // regardless of how many people are attending.
+        var total =
+            normalTickets +
+            traderPasses;
+
+        // People expected is the normal ticket
+        // count plus the number of people covered
+        // by trader passes.
+        var peopleExpected =
+            normalTickets +
+            traderPeopleExpected;
+
+        // People currently checked in/on site.
+        var peopleCheckedIn =
+            normalCheckedIn +
+            traderPeopleCheckedIn;
+
+        // People who have checked out.
+        var peopleCheckedOut =
+            normalCheckedOut +
+            traderPeopleCheckedOut;
+
+        // People physically on site.
+        var peopleOnSite =
+            normalOnSite +
+            traderPeopleCheckedIn;
+
+        // People who have not arrived yet.
+        var peopleNotYetIn =
+            normalNotYetIn +
+            traderPeopleNotYetIn;
+
+        // =====================================
         // RESPONSE
         // =====================================
 
@@ -117,19 +215,45 @@ public class EventStatsFunction
             {
                 EventId = eventId,
 
+                // -----------------------------
+                // PASS / TICKET COUNTS
+                // -----------------------------
+
                 Total = total,
 
-                CheckedIn = checkedIn,
+                NormalTickets = normalTickets,
 
-                CheckedOut = checkedOut,
+                TraderPasses = traderPasses,
 
-                OnSite = onSite,
+                // -----------------------------
+                // PEOPLE COUNTS
+                // -----------------------------
+
+                PeopleExpected = peopleExpected,
+
+                PeopleCheckedIn = peopleCheckedIn,
+
+                PeopleCheckedOut = peopleCheckedOut,
+
+                PeopleOnSite = peopleOnSite,
+
+                PeopleNotYetIn = peopleNotYetIn,
+
+                // -----------------------------
+                // EXISTING STATS
+                // -----------------------------
+
+                CheckedIn = peopleCheckedIn,
+
+                CheckedOut = peopleCheckedOut,
+
+                OnSite = peopleOnSite,
 
                 OnSiteUnder14 = onSiteUnder14,
 
                 OnSiteOver14 = onSiteOver14,
 
-                NotYetIn = notYetIn,
+                NotYetIn = peopleNotYetIn,
 
                 Cancelled = cancelled
             }
