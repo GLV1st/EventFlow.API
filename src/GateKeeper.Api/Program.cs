@@ -59,10 +59,23 @@ builder.Services.AddSingleton<
     ITicketRepository,
     TicketRepository>();
 
-// NEW — Trader system
+
+// =====================================
+// TRADER SYSTEM
+// =====================================
+
 builder.Services.AddSingleton<
     ITraderRepository,
     TraderRepository>();
+
+
+// =====================================
+// CATERING VENDOR SYSTEM
+// =====================================
+
+builder.Services.AddSingleton<
+    ICateringVendorRepository,
+    CateringVendorRepository>();
 
 
 // =====================================
