@@ -11,13 +11,16 @@ public class CheckInFunction
 {
     private readonly ITicketRepository _tickets;
     private readonly ITraderRepository _traders;
+    private readonly ICateringVendorRepository _cateringVendors;
 
     public CheckInFunction(
         ITicketRepository tickets,
-        ITraderRepository traders)
+        ITraderRepository traders,
+        ICateringVendorRepository cateringVendors)
     {
         _tickets = tickets;
         _traders = traders;
+        _cateringVendors = cateringVendors;
     }
 
     [Function("CheckIn")]
@@ -148,6 +151,76 @@ public class CheckInFunction
                 );
 
                 return okTrader;
+            }
+        }
+
+        // =====================================
+        // CATERING PASS FALLBACK
+        // =====================================
+        // Catering passes use the same COP-TRADER- number format
+        // as Trader passes, but are stored in CateringVendors.
+        // Only use this path if it was not a normal ticket or trader.
+
+        if (ticket == null &&
+            request.TicketNumber.StartsWith(
+                "COP-TRADER-",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var catering =
+                await _cateringVendors.GetCateringVendorAsync(
+                    request.EventId,
+                    request.TicketNumber
+                );
+
+            if (catering != null)
+            {
+                if (!string.Equals(
+                        catering.EventId,
+                        request.EventId,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    var wrongEvent = req.CreateResponse(HttpStatusCode.NotFound);
+                    await wrongEvent.WriteAsJsonAsync(new CheckInResponse
+                    {
+                        Status = "NOT_FOUND",
+                        Message = "Catering Pass is not valid for this event"
+                    });
+                    return wrongEvent;
+                }
+
+                if (catering.CheckedIn)
+                {
+                    var response = req.CreateResponse(HttpStatusCode.OK);
+                    await response.WriteAsJsonAsync(new CheckInResponse
+                    {
+                        Status = "ALREADY_CHECKED_IN",
+                        Message = "Catering Pass already checked in",
+                        TicketNumber = catering.CateringPassNumber,
+                        CustomerName = catering.CompanyName,
+                        TicketType = "Catering"
+                    });
+                    return response;
+                }
+
+                var scanTime = DateTime.UtcNow;
+
+                catering.CheckedIn = true;
+                catering.CheckedOut = false;
+                catering.CheckedInAt = scanTime;
+                catering.CheckedOutAt = null;
+
+                await _cateringVendors.UpdateCateringVendorAsync(catering);
+
+                var okCatering = req.CreateResponse(HttpStatusCode.OK);
+                await okCatering.WriteAsJsonAsync(new CheckInResponse
+                {
+                    Status = "SUCCESS",
+                    Message = "Welcome! Catering Pass checked in",
+                    TicketNumber = catering.CateringPassNumber,
+                    CustomerName = catering.CompanyName,
+                    TicketType = "Catering"
+                });
+                return okCatering;
             }
         }
 
