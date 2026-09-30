@@ -25,7 +25,7 @@ public class UpdateCateringVendorFunction
     [Function("UpdateCateringVendor")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
-            AuthorizationLevel.Function,
+            AuthorizationLevel.Anonymous,
             "put",
             Route = "cateringvendors/{eventId}/{passNumber}")]
         HttpRequestData req,

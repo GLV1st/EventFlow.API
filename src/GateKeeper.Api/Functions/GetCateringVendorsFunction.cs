@@ -23,7 +23,7 @@ public class GetCateringVendorsFunction
     [Function("GetCateringVendors")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
-            AuthorizationLevel.Function,
+            AuthorizationLevel.Anonymous,
             "get",
             Route = "cateringvendors/{eventId}")]
         HttpRequestData req,
