@@ -9,13 +9,16 @@ public class EventStatsFunction
 {
     private readonly ITicketRepository _tickets;
     private readonly ITraderRepository _traders;
+    private readonly ICateringVendorRepository _cateringVendors;
 
     public EventStatsFunction(
         ITicketRepository tickets,
-        ITraderRepository traders)
+        ITraderRepository traders,
+        ICateringVendorRepository cateringVendors)
     {
         _tickets = tickets;
         _traders = traders;
+        _cateringVendors = cateringVendors;
     }
 
     [Function("EventStats")]
@@ -54,6 +57,15 @@ public class EventStatsFunction
 
         var traders =
             await _traders.GetTradersByEventAsync(
+                eventId
+            );
+
+        // =====================================
+        // GET CATERING PASSES
+        // =====================================
+
+        var cateringVendors =
+            await _cateringVendors.GetCateringVendorsByEventAsync(
                 eventId
             );
 
@@ -165,41 +177,91 @@ public class EventStatsFunction
                 );
 
         // =====================================
+        // CATERING STATISTICS
+        // =====================================
+
+        var cateringPasses =
+            cateringVendors.Count;
+
+        var cateringPeopleExpected =
+            cateringVendors.Sum(v =>
+                Math.Max(0, v.NumberOfPeople)
+            );
+
+        var cateringPeopleCheckedIn =
+            cateringVendors
+                .Where(v =>
+                    v.CheckedIn &&
+                    !v.CheckedOut
+                )
+                .Sum(v =>
+                    Math.Max(0, v.NumberOfPeople)
+                );
+
+        var cateringPeopleCheckedOut =
+            cateringVendors
+                .Where(v =>
+                    v.CheckedOut
+                )
+                .Sum(v =>
+                    Math.Max(0, v.NumberOfPeople)
+                );
+
+        var cateringPeopleNotYetIn =
+            cateringVendors
+                .Where(v =>
+                    !v.CheckedIn &&
+                    !v.CheckedOut
+                )
+                .Sum(v =>
+                    Math.Max(0, v.NumberOfPeople)
+                );
+
+        // =====================================
         // COMBINED PASS / TICKET TOTALS
         // =====================================
 
-        // One trader pass counts as ONE pass,
+        // One trader or catering pass counts as ONE pass,
         // regardless of how many people are attending.
         var total =
             normalTickets +
-            traderPasses;
+            traderPasses +
+            cateringPasses;
 
-        // People expected is the normal ticket
-        // count plus the number of people covered
-        // by trader passes.
+        var combinedTraderPasses =
+            traderPasses +
+            cateringPasses;
+
+        // People expected is the normal ticket count
+        // plus the people covered by trader and catering passes.
         var peopleExpected =
             normalTickets +
-            traderPeopleExpected;
+            traderPeopleExpected +
+            cateringPeopleExpected;
 
         // People currently checked in/on site.
         var peopleCheckedIn =
             normalCheckedIn +
-            traderPeopleCheckedIn;
+            traderPeopleCheckedIn +
+            cateringPeopleCheckedIn;
 
         // People who have checked out.
         var peopleCheckedOut =
             normalCheckedOut +
-            traderPeopleCheckedOut;
+            traderPeopleCheckedOut +
+            cateringPeopleCheckedOut;
 
         // People physically on site.
         var peopleOnSite =
             normalOnSite +
-            traderPeopleCheckedIn;
+            traderPeopleCheckedIn +
+            cateringPeopleCheckedIn;
 
         // People who have not arrived yet.
         var peopleNotYetIn =
             normalNotYetIn +
-            traderPeopleNotYetIn;
+            traderPeopleNotYetIn +
+            cateringPeopleNotYetIn;
 
         // =====================================
         // RESPONSE
@@ -223,7 +285,7 @@ public class EventStatsFunction
 
                 NormalTickets = normalTickets,
 
-                TraderPasses = traderPasses,
+                TraderPasses = combinedTraderPasses,
 
                 // -----------------------------
                 // PEOPLE COUNTS
