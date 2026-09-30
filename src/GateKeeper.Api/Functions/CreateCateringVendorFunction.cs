@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.Json;
 using GateKeeper.Storage.Entities;
 using GateKeeper.Storage.Interfaces;
@@ -159,7 +160,6 @@ public class CreateCateringVendorFunction
             // 2  -> COP-TRADER-0002
             // 3  -> COP-TRADER-0003
             //
-            // The formatting of the pass number is handled here.
             // ----------------------------------------------------
 
             var traderNumber =
@@ -174,13 +174,48 @@ public class CreateCateringVendorFunction
 
 
             // ----------------------------------------------------
+            // GENERATE SECURE DOCUMENT UPLOAD TOKEN
+            // ----------------------------------------------------
+            //
+            // This token is randomly generated and is not based
+            // on the catering pass number or customer details.
+            //
+            // The token will be used later in the secure
+            // document-upload link.
+            //
+            // ----------------------------------------------------
+
+            var documentUploadToken =
+                Convert.ToHexString(
+                    RandomNumberGenerator.GetBytes(32)
+                ).ToLowerInvariant();
+
+
+            // ----------------------------------------------------
+            // TOKEN EXPIRY
+            // ----------------------------------------------------
+            //
+            // Upload links remain valid for 365 days.
+            //
+            // We can change this later if required.
+            //
+            // ----------------------------------------------------
+
+            var documentUploadTokenExpiresAt =
+                DateTimeOffset.UtcNow.AddDays(365);
+
+
+            // ----------------------------------------------------
             // CREATE ENTITY
             // ----------------------------------------------------
 
             var cateringVendor =
                 new CateringVendorEntity
                 {
+                    // ------------------------------------------------
                     // TABLE KEYS
+                    // ------------------------------------------------
+
                     PartitionKey =
                         request.EventId,
 
@@ -188,7 +223,10 @@ public class CreateCateringVendorFunction
                         passNumber,
 
 
+                    // ------------------------------------------------
                     // GATEKEEPER
+                    // ------------------------------------------------
+
                     EventId =
                         request.EventId,
 
@@ -202,7 +240,10 @@ public class CreateCateringVendorFunction
                         request.OrderItemId ?? string.Empty,
 
 
+                    // ------------------------------------------------
                     // CONTACT
+                    // ------------------------------------------------
+
                     ContactNames =
                         request.ContactNames ?? string.Empty,
 
@@ -216,7 +257,10 @@ public class CreateCateringVendorFunction
                         request.PhoneNumber ?? string.Empty,
 
 
+                    // ------------------------------------------------
                     // ADDRESS
+                    // ------------------------------------------------
+
                     StreetAddress =
                         request.StreetAddress ?? string.Empty,
 
@@ -236,7 +280,10 @@ public class CreateCateringVendorFunction
                         request.Country ?? string.Empty,
 
 
+                    // ------------------------------------------------
                     // ONLINE
+                    // ------------------------------------------------
+
                     FacebookPage =
                         request.FacebookPage ?? string.Empty,
 
@@ -244,7 +291,10 @@ public class CreateCateringVendorFunction
                         request.Website ?? string.Empty,
 
 
+                    // ------------------------------------------------
                     // FOOD / PITCH
+                    // ------------------------------------------------
+
                     FoodDescription =
                         request.FoodDescription ?? string.Empty,
 
@@ -264,11 +314,16 @@ public class CreateCateringVendorFunction
                         request.NumberOfPeople,
 
 
+                    // ------------------------------------------------
                     // DOCUMENTS
+                    // ------------------------------------------------
                     //
-                    // These will be populated with Azure Blob
-                    // references when the upload system is connected.
+                    // These remain empty initially.
                     //
+                    // They will be populated with Azure Blob paths
+                    // when the vendor uploads their documents.
+                    //
+                    // ------------------------------------------------
 
                     VehiclePhoto =
                         request.VehiclePhoto ?? string.Empty,
@@ -298,7 +353,21 @@ public class CreateCateringVendorFunction
                         request.EventMenu ?? string.Empty,
 
 
+                    // ------------------------------------------------
+                    // DOCUMENT UPLOAD SECURITY
+                    // ------------------------------------------------
+
+                    DocumentUploadToken =
+                        documentUploadToken,
+
+                    DocumentUploadTokenExpiresAt =
+                        documentUploadTokenExpiresAt,
+
+
+                    // ------------------------------------------------
                     // TERMS
+                    // ------------------------------------------------
+
                     TermsAccepted =
                         request.TermsAccepted,
 
@@ -309,7 +378,10 @@ public class CreateCateringVendorFunction
                         request.SignedDate,
 
 
+                    // ------------------------------------------------
                     // SCANNING
+                    // ------------------------------------------------
+
                     CheckedIn =
                         false,
 
@@ -336,6 +408,15 @@ public class CreateCateringVendorFunction
             // ----------------------------------------------------
             // RETURN CREATED RECORD
             // ----------------------------------------------------
+            //
+            // The upload token is returned here because this
+            // endpoint is called by our trusted WooCommerce
+            // processing code using the Azure Function key.
+            //
+            // The normal GET vendor endpoint does NOT expose
+            // this token.
+            //
+            // ----------------------------------------------------
 
             var response =
                 req.CreateResponse(
@@ -344,7 +425,22 @@ public class CreateCateringVendorFunction
 
 
             await response.WriteAsJsonAsync(
-                cateringVendor
+                new
+                {
+                    cateringVendor.EventId,
+                    cateringVendor.CateringPassNumber,
+                    cateringVendor.OrderId,
+                    cateringVendor.OrderItemId,
+
+                    cateringVendor.CompanyName,
+                    cateringVendor.CustomerEmail,
+
+                    DocumentUploadToken =
+                        cateringVendor.DocumentUploadToken,
+
+                    DocumentUploadTokenExpiresAt =
+                        cateringVendor.DocumentUploadTokenExpiresAt
+                }
             );
 
 

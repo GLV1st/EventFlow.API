@@ -87,31 +87,36 @@ public class CateringVendorEntity : ITableEntity
     public int NumberOfPeople { get; set; }
 
 
-    // ============================================================
-    // DOCUMENTS
-    // ============================================================
-    //
-    // These will eventually contain the Azure Blob names/paths.
-    // The actual files will NOT be stored in the Table.
-    //
+// ============================================================
+// DOCUMENTS
+// ============================================================
 
-    public string VehiclePhoto { get; set; } = string.Empty;
+public string VehiclePhoto { get; set; } = string.Empty;
 
-    public string PublicLiabilityInsurance { get; set; } = string.Empty;
+public string PublicLiabilityInsurance { get; set; } = string.Empty;
 
-    public string ProductLiabilityInsurance { get; set; } = string.Empty;
+public string ProductLiabilityInsurance { get; set; } = string.Empty;
 
-    public string FoodHygieneCertificates { get; set; } = string.Empty;
+public string FoodHygieneCertificates { get; set; } = string.Empty;
 
-    public string GasSafetyCertificate { get; set; } = string.Empty;
+public string GasSafetyCertificate { get; set; } = string.Empty;
 
-    public string FoodStandardsCertificate { get; set; } = string.Empty;
+public string FoodStandardsCertificate { get; set; } = string.Empty;
 
-    public string GasInstallationCertificate { get; set; } = string.Empty;
+public string GasInstallationCertificate { get; set; } = string.Empty;
 
-    public string Logo { get; set; } = string.Empty;
+public string Logo { get; set; } = string.Empty;
 
-    public string EventMenu { get; set; } = string.Empty;
+public string EventMenu { get; set; } = string.Empty;
+
+
+// ============================================================
+// DOCUMENT UPLOAD SECURITY
+// ============================================================
+
+public string DocumentUploadToken { get; set; } = string.Empty;
+
+public DateTimeOffset? DocumentUploadTokenExpiresAt { get; set; }
 
 
     // ============================================================
