@@ -65,6 +65,99 @@ public class GetCateringVendorsFunction
 
 
             // ----------------------------------------------------
+            // BUILD SAFE DASHBOARD RESPONSE
+            // ----------------------------------------------------
+
+            var results =
+                vendors.Select(vendor => new
+                {
+                    vendor.EventId,
+                    vendor.CateringPassNumber,
+                    vendor.OrderId,
+                    vendor.OrderItemId,
+
+                    vendor.ContactNames,
+                    vendor.CompanyName,
+                    vendor.CustomerEmail,
+                    vendor.PhoneNumber,
+
+                    vendor.StreetAddress,
+                    vendor.AddressLine2,
+                    vendor.City,
+                    vendor.CountyRegion,
+                    vendor.Postcode,
+                    vendor.Country,
+
+                    vendor.FacebookPage,
+                    vendor.Website,
+
+                    vendor.FoodDescription,
+                    vendor.PitchStyle,
+                    vendor.UnitWidth,
+                    vendor.UnitLength,
+                    vendor.VehicleRegistration,
+                    vendor.NumberOfPeople,
+
+                    vendor.TermsAccepted,
+                    vendor.SignedBy,
+                    vendor.SignedDate,
+
+                    // ------------------------------------------------
+                    // DOCUMENT STATUS
+                    // ------------------------------------------------
+
+                    Documents = new
+                    {
+                        VehiclePhoto =
+                            !string.IsNullOrWhiteSpace(
+                                vendor.VehiclePhoto
+                            ),
+
+                        PublicLiabilityInsurance =
+                            !string.IsNullOrWhiteSpace(
+                                vendor.PublicLiabilityInsurance
+                            ),
+
+                        ProductLiabilityInsurance =
+                            !string.IsNullOrWhiteSpace(
+                                vendor.ProductLiabilityInsurance
+                            ),
+
+                        FoodHygieneCertificates =
+                            !string.IsNullOrWhiteSpace(
+                                vendor.FoodHygieneCertificates
+                            ),
+
+                        GasSafetyCertificate =
+                            !string.IsNullOrWhiteSpace(
+                                vendor.GasSafetyCertificate
+                            ),
+
+                        FoodStandardsCertificate =
+                            !string.IsNullOrWhiteSpace(
+                                vendor.FoodStandardsCertificate
+                            ),
+
+                        GasInstallationCertificate =
+                            !string.IsNullOrWhiteSpace(
+                                vendor.GasInstallationCertificate
+                            ),
+
+                        EventMenu =
+                            !string.IsNullOrWhiteSpace(
+                                vendor.EventMenu
+                            ),
+
+                        Logo =
+                            !string.IsNullOrWhiteSpace(
+                                vendor.Logo
+                            )
+                    }
+                })
+                .ToList();
+
+
+            // ----------------------------------------------------
             // RETURN RESULTS
             // ----------------------------------------------------
 
@@ -74,7 +167,7 @@ public class GetCateringVendorsFunction
                 );
 
             await response.WriteAsJsonAsync(
-                vendors
+                results
             );
 
             return response;
