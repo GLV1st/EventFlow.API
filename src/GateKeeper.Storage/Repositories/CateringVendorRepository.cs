@@ -1,6 +1,8 @@
+using Azure;
 using Azure.Data.Tables;
 using GateKeeper.Storage.Entities;
 using GateKeeper.Storage.Interfaces;
+using Microsoft.Extensions.Configuration;
 
 namespace GateKeeper.Storage.Repositories;
 
@@ -8,15 +10,18 @@ public class CateringVendorRepository : ICateringVendorRepository
 {
     private readonly TableClient _table;
 
-    public CateringVendorRepository()
+
+    public CateringVendorRepository(
+        IConfiguration configuration
+    )
     {
         var connectionString =
-            Environment.GetEnvironmentVariable("AzureWebJobsStorage");
+            configuration["StorageConnection"];
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                "AzureWebJobsStorage connection string is not configured."
+                "StorageConnection configuration is not configured."
             );
         }
 
@@ -62,7 +67,7 @@ public class CateringVendorRepository : ICateringVendorRepository
 
             return response.Value;
         }
-        catch (Azure.RequestFailedException ex)
+        catch (RequestFailedException ex)
             when (ex.Status == 404)
         {
             return null;
