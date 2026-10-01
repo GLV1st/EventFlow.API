@@ -20,4 +20,7 @@ public interface ITraderPitchRepository
     Task DeleteAsync(
         string eventId,
         string pitchId);
+
+    Task AllocateAsync(
+        IReadOnlyList<TraderPitchEntity> pitches);
 }
