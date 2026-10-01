@@ -2,6 +2,7 @@ using GateKeeper.Storage.Interfaces;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using System.Net;
+using System.Text.Json;
 
 namespace GateKeeper.Api.Functions;
 
@@ -15,102 +16,142 @@ public class ReleaseTraderPitchReservationFunction
         _pitches = pitches;
     }
 
-
     [Function("ReleaseTraderPitchReservation")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
             AuthorizationLevel.Function,
             "post",
-            Route = "traderpitches/release"
-        )]
+            Route = "traderpitches/release")]
         HttpRequestData req)
     {
         try
         {
             var request =
-                await req.ReadFromJsonAsync<ReleaseRequest>();
-
+                await JsonSerializer.DeserializeAsync<ReleaseRequest>(
+                    req.Body,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
 
             if (request == null)
             {
                 return await ErrorResponse(
                     req,
-                    "Invalid request."
-                );
+                    HttpStatusCode.BadRequest,
+                    "Invalid request.");
             }
-
-
-            if (string.IsNullOrWhiteSpace(request.EventId))
-            {
-                return await ErrorResponse(
-                    req,
-                    "EventId is required."
-                );
-            }
-
-
-            if (string.IsNullOrWhiteSpace(request.ReservationId))
-            {
-                return await ErrorResponse(
-                    req,
-                    "ReservationId is required."
-                );
-            }
-
 
             var eventId =
-                request.EventId.Trim();
+                (request.EventId ?? "").Trim();
 
+            if (string.IsNullOrWhiteSpace(eventId))
+            {
+                return await ErrorResponse(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "EventId is required.");
+            }
 
             var reservationId =
-                request.ReservationId.Trim();
+                (request.ReservationId ?? "").Trim();
 
+            var pitchIds =
+                (request.PitchIds ?? new List<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim().ToUpperInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            /*
-             * Get all pitches for this event.
-             */
+            var companyName =
+                (request.CompanyName ?? "").Trim();
+
             var pitches =
                 await _pitches.GetAllAsync(eventId);
 
-
-            /*
-             * Find only pitches belonging to this reservation.
-             *
-             * We deliberately only release pitches that are currently
-             * Reserved. A Booked pitch can never be released by this
-             * endpoint.
-             */
+            // ---------------------------------------------------------
+            // FIRST: use the reservation ID when supplied.
+            // ---------------------------------------------------------
             var reservedPitches =
                 pitches
                     .Where(p =>
                         string.Equals(
                             p.Status,
                             "Reserved",
-                            StringComparison.OrdinalIgnoreCase
-                        )
+                            StringComparison.OrdinalIgnoreCase)
+                        &&
+                        !string.IsNullOrWhiteSpace(reservationId)
                         &&
                         string.Equals(
                             p.ReservationId,
                             reservationId,
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                    )
+                            StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
+            // ---------------------------------------------------------
+            // FALLBACK: if the reservation ID is stale/wrong, find the
+            // reservation from the old pitch IDs + company name.
+            //
+            // This is specifically for replacing a pitch from a live
+            // WooCommerce session. It prevents an old reservation ID from
+            // stopping a customer changing A1 -> A2, etc.
+            // ---------------------------------------------------------
+            if (reservedPitches.Count == 0 && pitchIds.Count > 0)
+            {
+                var matching =
+                    pitches
+                        .Where(p =>
+                            string.Equals(
+                                p.Status,
+                                "Reserved",
+                                StringComparison.OrdinalIgnoreCase)
+                            &&
+                            pitchIds.Contains(
+                                p.PitchId,
+                                StringComparer.OrdinalIgnoreCase)
+                            &&
+                            (
+                                string.IsNullOrWhiteSpace(companyName)
+                                ||
+                                string.Equals(
+                                    p.CompanyName,
+                                    companyName,
+                                    StringComparison.OrdinalIgnoreCase)
+                            )
+                            &&
+                            !string.IsNullOrWhiteSpace(p.ReservationId))
+                        .ToList();
 
-            /*
-             * Nothing found.
-             *
-             * This is deliberately treated as success so the customer
-             * can still continue selecting a pitch if the reservation
-             * has already expired or has already been released.
-             */
+                // Only use the fallback when ALL requested old pitch squares
+                // point to one and the same reservation.
+                var reservationGroups =
+                    matching
+                        .GroupBy(p => p.ReservationId)
+                        .Where(g =>
+                            g.Select(p => p.PitchId)
+                                .Distinct(StringComparer.OrdinalIgnoreCase)
+                                .Count()
+                            == pitchIds.Count)
+                        .ToList();
+
+                if (reservationGroups.Count == 1)
+                {
+                    reservedPitches =
+                        reservationGroups[0].ToList();
+                    reservationId =
+                        reservationGroups[0].Key;
+                }
+            }
+
+            // ---------------------------------------------------------
+            // Nothing to release is still a successful/idempotent result.
+            // This is important for expired reservations and clean sessions.
+            // ---------------------------------------------------------
             if (reservedPitches.Count == 0)
             {
-                var nothingResponse =
-                    req.CreateResponse(HttpStatusCode.OK);
-
-                await nothingResponse.WriteAsJsonAsync(
+                return await JsonResponse(
+                    req,
+                    HttpStatusCode.OK,
                     new
                     {
                         success = true,
@@ -118,127 +159,80 @@ public class ReleaseTraderPitchReservationFunction
                         reservationId,
                         released = 0,
                         pitchIds = Array.Empty<string>()
-                    }
-                );
-
-                return nothingResponse;
+                    });
             }
 
+            var releasedIds = new List<string>();
 
-            var releasedPitchIds =
-                new List<string>();
-
-
-            /*
-             * Release each pitch.
-             */
             foreach (var pitch in reservedPitches)
             {
                 pitch.Status = "Available";
-
                 pitch.ReservationId = "";
-
                 pitch.ReservedUntil = null;
-
                 pitch.TraderPassNumber = "";
-
                 pitch.CompanyName = "";
-
                 pitch.OrderId = "";
-
                 pitch.PitchSize = "";
-
                 pitch.SquaresUsed = 1;
+                pitch.Updated = DateTime.UtcNow;
 
-                pitch.Updated =
-                    DateTime.UtcNow;
-
-
-                await _pitches.UpsertAsync(
-                    pitch
-                );
-
-
-                releasedPitchIds.Add(
-                    pitch.PitchId
-                );
+                await _pitches.UpsertAsync(pitch);
+                releasedIds.Add(pitch.PitchId);
             }
 
-
-            /*
-             * Return the released pitches.
-             */
-            var response =
-                req.CreateResponse(
-                    HttpStatusCode.OK
-                );
-
-
-            await response.WriteAsJsonAsync(
+            return await JsonResponse(
+                req,
+                HttpStatusCode.OK,
                 new
                 {
                     success = true,
                     eventId,
                     reservationId,
-                    released = releasedPitchIds.Count,
-                    pitchIds = releasedPitchIds
-                }
-            );
-
-
-            return response;
+                    released = releasedIds.Count,
+                    pitchIds = releasedIds
+                });
         }
         catch (Exception ex)
         {
-            var response =
-                req.CreateResponse(
-                    HttpStatusCode.InternalServerError
-                );
-
-
-            await response.WriteAsJsonAsync(
-                new
-                {
-                    success = false,
-                    error =
-                        "Unable to release the pitch reservation.",
-                    detail = ex.Message
-                }
-            );
-
-
-            return response;
+            return await ErrorResponse(
+                req,
+                HttpStatusCode.InternalServerError,
+                ex.Message);
         }
     }
 
+    private static async Task<HttpResponseData> JsonResponse(
+        HttpRequestData req,
+        HttpStatusCode status,
+        object body)
+    {
+        var response = req.CreateResponse(status);
+        response.Headers.Add("Content-Type", "application/json");
+        await response.WriteStringAsync(
+            JsonSerializer.Serialize(body));
+        return response;
+    }
 
     private static async Task<HttpResponseData> ErrorResponse(
         HttpRequestData req,
+        HttpStatusCode status,
         string message)
     {
-        var response =
-            req.CreateResponse(
-                HttpStatusCode.BadRequest
-            );
-
-
-        await response.WriteAsJsonAsync(
+        return await JsonResponse(
+            req,
+            status,
             new
             {
                 success = false,
                 error = message
-            }
-        );
-
-
-        return response;
+            });
     }
 
-
-    private class ReleaseRequest
+    private sealed class ReleaseRequest
     {
-        public string EventId { get; set; } = "";
-
-        public string ReservationId { get; set; } = "";
+        public string? EventId { get; set; }
+        public string? ReservationId { get; set; }
+        public List<string>? PitchIds { get; set; }
+        public string? CompanyName { get; set; }
     }
 }
