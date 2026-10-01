@@ -25,7 +25,14 @@ public class InitializeTraderPitchesFunction
         HttpRequestData req,
         string eventId)
     {
-        var rows = new[] { "A", "B", "C", "D", "E", "F" };
+        var rows = new[]
+        {
+            'A',
+            'B',
+            'C',
+            'D',
+            'E'
+        };
 
         var created = 0;
 
@@ -33,54 +40,67 @@ public class InitializeTraderPitchesFunction
         {
             for (var number = 1; number <= 10; number++)
             {
-                var pitchId = $"{row}{number}";
+                var pitchId =
+                    $"{row}{number}";
 
-                var existing = await _pitches.GetAsync(
-                    eventId,
-                    pitchId);
+                var existing =
+                    await _pitches.GetAsync(
+                        eventId,
+                        pitchId);
 
                 if (existing != null)
                 {
                     continue;
                 }
 
-                var pitch = new TraderPitchEntity
-                {
-                    PartitionKey = eventId,
-                    RowKey = pitchId,
+                var pitch =
+                    new TraderPitchEntity
+                    {
+                        PartitionKey = eventId,
+                        RowKey = pitchId,
 
-                    PitchId = pitchId,
-                    Status = "Available",
+                        PitchId = pitchId,
 
-                    EventId = eventId,
-                    EventName = "COP Carnival",
+                        Status = "Available",
 
-                    TraderPassNumber = "",
-                    CompanyName = "",
-                    OrderId = "",
+                        EventId = eventId,
 
-                    PitchSize = "",
-                    SquaresUsed = 1,
+                        EventName = "COP Carnival",
 
-                    Created = DateTime.UtcNow,
-                    Updated = DateTime.UtcNow
-                };
+                        TraderPassNumber = "",
+                        CompanyName = "",
+                        OrderId = "",
 
-                await _pitches.UpsertAsync(pitch);
+                        PitchSize = "",
+
+                        SquaresUsed = 1,
+
+                        ReservationId = "",
+                        ReservedUntil = null,
+
+                        Created = DateTime.UtcNow,
+                        Updated = DateTime.UtcNow
+                    };
+
+                await _pitches.UpsertAsync(
+                    pitch);
 
                 created++;
             }
         }
 
-        var response = req.CreateResponse(HttpStatusCode.OK);
+        var response =
+            req.CreateResponse(
+                HttpStatusCode.OK);
 
-        await response.WriteAsJsonAsync(new
-        {
-            success = true,
-            eventId,
-            created,
-            totalPitches = 60
-        });
+        await response.WriteAsJsonAsync(
+            new
+            {
+                success = true,
+                eventId,
+                created,
+                totalPitches = 50
+            });
 
         return response;
     }
