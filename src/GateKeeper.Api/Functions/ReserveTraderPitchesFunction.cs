@@ -18,6 +18,7 @@ public class ReserveTraderPitchesFunction
         _pitches = pitches;
     }
 
+
     [Function("ReserveTraderPitches")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
@@ -29,6 +30,10 @@ public class ReserveTraderPitchesFunction
     {
         try
         {
+            // ==========================================
+            // READ REQUEST
+            // ==========================================
+
             var request =
                 await JsonSerializer.DeserializeAsync<ReservationRequest>(
                     req.Body,
@@ -36,6 +41,7 @@ public class ReserveTraderPitchesFunction
                     {
                         PropertyNameCaseInsensitive = true
                     });
+
 
             if (request == null)
             {
@@ -45,14 +51,10 @@ public class ReserveTraderPitchesFunction
                     "Invalid request.");
             }
 
-            if (string.IsNullOrWhiteSpace(
-                    request.TraderPassNumber))
-            {
-                return await Error(
-                    req,
-                    HttpStatusCode.BadRequest,
-                    "TraderPassNumber is required.");
-            }
+
+            // ==========================================
+            // COMPANY
+            // ==========================================
 
             if (string.IsNullOrWhiteSpace(
                     request.CompanyName))
@@ -63,6 +65,25 @@ public class ReserveTraderPitchesFunction
                     "CompanyName is required.");
             }
 
+
+            // ==========================================
+            // RESERVATION REFERENCE
+            // ==========================================
+
+            if (string.IsNullOrWhiteSpace(
+                    request.ReservationReference))
+            {
+                return await Error(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "ReservationReference is required.");
+            }
+
+
+            // ==========================================
+            // PITCH IDS
+            // ==========================================
+
             if (request.PitchIds == null ||
                 request.PitchIds.Count == 0)
             {
@@ -71,6 +92,7 @@ public class ReserveTraderPitchesFunction
                     HttpStatusCode.BadRequest,
                     "At least one PitchId is required.");
             }
+
 
             // ==========================================
             // NORMALISE PITCH SIZE
@@ -81,7 +103,9 @@ public class ReserveTraderPitchesFunction
                 .Replace(" ", "")
                 .ToLowerInvariant();
 
+
             int requiredSquares;
+
 
             if (pitchSize == "4x4")
             {
@@ -99,6 +123,7 @@ public class ReserveTraderPitchesFunction
                     "PitchSize must be 4x4 or 8x4.");
             }
 
+
             // ==========================================
             // CHECK NUMBER OF PITCHES
             // ==========================================
@@ -112,6 +137,7 @@ public class ReserveTraderPitchesFunction
                     $"A {request.PitchSize} pitch requires {requiredSquares} space(s).");
             }
 
+
             // ==========================================
             // NORMALISE IDS
             // ==========================================
@@ -124,6 +150,11 @@ public class ReserveTraderPitchesFunction
                         .ToUpperInvariant())
                     .ToList();
 
+
+            // ==========================================
+            // DUPLICATES
+            // ==========================================
+
             if (pitchIds.Count !=
                 pitchIds.Distinct().Count())
             {
@@ -132,6 +163,7 @@ public class ReserveTraderPitchesFunction
                     HttpStatusCode.BadRequest,
                     "Duplicate pitch IDs were supplied.");
             }
+
 
             // ==========================================
             // VALIDATE IDS
@@ -148,6 +180,7 @@ public class ReserveTraderPitchesFunction
                 }
             }
 
+
             // ==========================================
             // VALIDATE 8x4
             // ==========================================
@@ -163,6 +196,7 @@ public class ReserveTraderPitchesFunction
                     "The selected spaces are not a valid 8m x 4m pitch combination.");
             }
 
+
             // ==========================================
             // LOAD PITCHES
             // ==========================================
@@ -170,12 +204,14 @@ public class ReserveTraderPitchesFunction
             var pitches =
                 new List<TraderPitchEntity>();
 
+
             foreach (var pitchId in pitchIds)
             {
                 var pitch =
                     await _pitches.GetAsync(
                         eventId,
                         pitchId);
+
 
                 if (pitch == null)
                 {
@@ -185,15 +221,22 @@ public class ReserveTraderPitchesFunction
                         $"Pitch {pitchId} does not exist.");
                 }
 
+
                 pitches.Add(pitch);
             }
 
+
             // ==========================================
-            // CHECK CURRENT STATE
+            // CURRENT TIME
             // ==========================================
 
             var now =
                 DateTime.UtcNow;
+
+
+            // ==========================================
+            // CHECK CURRENT STATE
+            // ==========================================
 
             foreach (var pitch in pitches)
             {
@@ -209,6 +252,7 @@ public class ReserveTraderPitchesFunction
                         $"Pitch {pitch.PitchId} is already booked.");
                 }
 
+
                 // --------------------------------------
                 // ACTIVE RESERVATION
                 // --------------------------------------
@@ -223,6 +267,7 @@ public class ReserveTraderPitchesFunction
                         $"Pitch {pitch.PitchId} is currently reserved.");
                 }
 
+
                 // --------------------------------------
                 // EXPIRED RESERVATION
                 // --------------------------------------
@@ -233,17 +278,37 @@ public class ReserveTraderPitchesFunction
                         pitch.ReservedUntil.Value <= now
                     ))
                 {
-                    // Treat expired reservation as available.
-                    pitch.Status = "Available";
-                    pitch.ReservationId = "";
-                    pitch.ReservedUntil = null;
-                    pitch.TraderPassNumber = "";
-                    pitch.CompanyName = "";
-                    pitch.OrderId = "";
-                    pitch.PitchSize = "";
-                    pitch.SquaresUsed = 1;
+                    /*
+                     * Expired reservations are treated
+                     * as available.
+                     */
+
+                    pitch.Status =
+                        "Available";
+
+                    pitch.ReservationId =
+                        "";
+
+                    pitch.ReservedUntil =
+                        null;
+
+                    pitch.TraderPassNumber =
+                        "";
+
+                    pitch.CompanyName =
+                        "";
+
+                    pitch.OrderId =
+                        "";
+
+                    pitch.PitchSize =
+                        "";
+
+                    pitch.SquaresUsed =
+                        1;
                 }
             }
+
 
             // ==========================================
             // CREATE RESERVATION
@@ -252,37 +317,63 @@ public class ReserveTraderPitchesFunction
             var reservationId =
                 Guid.NewGuid().ToString("N");
 
+
             var reservedUntil =
                 now.AddMinutes(5);
 
+
             foreach (var pitch in pitches)
             {
-                pitch.Status = "Reserved";
+                pitch.Status =
+                    "Reserved";
+
 
                 pitch.ReservationId =
                     reservationId;
 
+
                 pitch.ReservedUntil =
                     reservedUntil;
 
+
+                /*
+                 * Trader Pass does NOT exist yet.
+                 *
+                 * Leave this blank.
+                 */
                 pitch.TraderPassNumber =
-                    request.TraderPassNumber;
+                    "";
+
 
                 pitch.CompanyName =
                     request.CompanyName;
 
+
+                /*
+                 * Before checkout this stores the
+                 * temporary WooCommerce reservation
+                 * reference.
+                 *
+                 * Once the order is completed this
+                 * will be replaced with the real
+                 * WooCommerce order ID.
+                 */
                 pitch.OrderId =
-                    request.OrderId ?? "";
+                    request.ReservationReference;
+
 
                 pitch.PitchSize =
                     request.PitchSize ?? "";
 
+
                 pitch.SquaresUsed =
                     requiredSquares;
+
 
                 pitch.Updated =
                     now;
             }
+
 
             // ==========================================
             // ATOMIC RESERVATION
@@ -302,6 +393,7 @@ public class ReserveTraderPitchesFunction
                     "One or more of the selected pitches were reserved by another customer. Please choose another location.");
             }
 
+
             // ==========================================
             // SUCCESS
             // ==========================================
@@ -310,22 +402,32 @@ public class ReserveTraderPitchesFunction
                 req.CreateResponse(
                     HttpStatusCode.OK);
 
+
             await response.WriteAsJsonAsync(
                 new
                 {
                     success = true,
+
                     reservationId,
+
                     eventId,
-                    traderPassNumber =
-                        request.TraderPassNumber,
+
+                    reservationReference =
+                        request.ReservationReference,
+
                     companyName =
                         request.CompanyName,
+
                     pitchSize =
                         request.PitchSize,
+
                     pitchIds,
+
                     reservedUntil,
+
                     reservationSeconds = 300
                 });
+
 
             return response;
         }
@@ -338,6 +440,7 @@ public class ReserveTraderPitchesFunction
         }
     }
 
+
     // ==========================================
     // VALIDATE PITCH ID
     // ==========================================
@@ -348,24 +451,34 @@ public class ReserveTraderPitchesFunction
         if (string.IsNullOrWhiteSpace(pitchId))
             return false;
 
+
         if (pitchId.Length < 2)
             return false;
 
-        var row = pitchId[0];
 
-        // Customer-facing map is A-E only.
+        var row =
+            pitchId[0];
+
+
+        /*
+         * New customer map is A-E only.
+         */
+
         if (row < 'A' ||
             row > 'E')
             return false;
+
 
         if (!int.TryParse(
                 pitchId.Substring(1),
                 out var number))
             return false;
 
+
         return number >= 1 &&
                number <= 10;
     }
+
 
     // ==========================================
     // VALIDATE 8x4
@@ -381,26 +494,42 @@ public class ReserveTraderPitchesFunction
                 out var number1))
             return false;
 
+
         if (!TryParsePitch(
                 second,
                 out var row2,
                 out var number2))
             return false;
 
-        // ------------------------------------------
-        // NORMAL HORIZONTAL PAIR
-        // ------------------------------------------
 
-        // Any two adjacent spaces in the same row.
+        // ==========================================
+        // NORMAL HORIZONTAL PAIR
+        // ==========================================
+
+        /*
+         * Any adjacent two spaces on the
+         * same row are valid.
+         *
+         * A4 + A5
+         * B6 + B7
+         * C2 + C3
+         * D8 + D9
+         * E3 + E4
+         */
+
         if (row1 == row2 &&
-            Math.Abs(number1 - number2) == 1)
+            Math.Abs(
+                number1 -
+                number2
+            ) == 1)
         {
             return true;
         }
 
-        // ------------------------------------------
+
+        // ==========================================
         // SPECIAL END-ON PAIRS
-        // ------------------------------------------
+        // ==========================================
 
         return IsSpecialEndPair(
             row1,
@@ -409,8 +538,9 @@ public class ReserveTraderPitchesFunction
             number2);
     }
 
+
     // ==========================================
-    // SPECIAL END-ON
+    // SPECIAL END-ON PAIRS
     // ==========================================
 
     private static bool IsSpecialEndPair(
@@ -419,7 +549,10 @@ public class ReserveTraderPitchesFunction
         char row2,
         int number2)
     {
-        // A1 + B1
+        /*
+         * A1 + B1
+         */
+
         if (
             (
                 row1 == 'A' &&
@@ -439,7 +572,11 @@ public class ReserveTraderPitchesFunction
             return true;
         }
 
-        // A10 + B10
+
+        /*
+         * A10 + B10
+         */
+
         if (
             (
                 row1 == 'A' &&
@@ -459,7 +596,11 @@ public class ReserveTraderPitchesFunction
             return true;
         }
 
-        // C1 + D1
+
+        /*
+         * C1 + D1
+         */
+
         if (
             (
                 row1 == 'C' &&
@@ -479,7 +620,11 @@ public class ReserveTraderPitchesFunction
             return true;
         }
 
-        // C10 + D10
+
+        /*
+         * C10 + D10
+         */
+
         if (
             (
                 row1 == 'C' &&
@@ -498,9 +643,11 @@ public class ReserveTraderPitchesFunction
         {
             return true;
         }
+
 
         return false;
     }
+
 
     // ==========================================
     // PARSE PITCH
@@ -511,21 +658,29 @@ public class ReserveTraderPitchesFunction
         out char row,
         out int number)
     {
-        row = '\0';
-        number = 0;
+        row =
+            '\0';
+
+        number =
+            0;
+
 
         if (!IsValidPitchId(pitchId))
             return false;
 
-        row = pitchId[0];
+
+        row =
+            pitchId[0];
+
 
         return int.TryParse(
             pitchId.Substring(1),
             out number);
     }
 
+
     // ==========================================
-    // ERROR
+    // ERROR RESPONSE
     // ==========================================
 
     private static async Task<HttpResponseData> Error(
@@ -534,7 +689,9 @@ public class ReserveTraderPitchesFunction
         string message)
     {
         var response =
-            req.CreateResponse(status);
+            req.CreateResponse(
+                status);
+
 
         await response.WriteAsJsonAsync(
             new
@@ -543,25 +700,39 @@ public class ReserveTraderPitchesFunction
                 error = message
             });
 
+
         return response;
     }
 
+
     // ==========================================
-    // REQUEST
+    // REQUEST MODEL
     // ==========================================
 
     private class ReservationRequest
     {
-        public string TraderPassNumber { get; set; }
-            = "";
+        /*
+         * No TraderPassNumber here.
+         *
+         * The real pass is created only after
+         * WooCommerce checkout completes.
+         */
 
         public string CompanyName { get; set; }
             = "";
 
-        public string? OrderId { get; set; }
+
+        /*
+         * Temporary reference generated by
+         * the website before checkout.
+         */
+        public string ReservationReference { get; set; }
+            = "";
+
 
         public string PitchSize { get; set; }
             = "";
+
 
         public List<string> PitchIds { get; set; }
             = new();
