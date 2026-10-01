@@ -30,10 +30,6 @@ public class ReserveTraderPitchesFunction
     {
         try
         {
-            // ==========================================
-            // READ REQUEST
-            // ==========================================
-
             var request =
                 await JsonSerializer.DeserializeAsync<ReservationRequest>(
                     req.Body,
@@ -53,20 +49,6 @@ public class ReserveTraderPitchesFunction
 
 
             // ==========================================
-            // COMPANY
-            // ==========================================
-
-            if (string.IsNullOrWhiteSpace(
-                    request.CompanyName))
-            {
-                return await Error(
-                    req,
-                    HttpStatusCode.BadRequest,
-                    "CompanyName is required.");
-            }
-
-
-            // ==========================================
             // RESERVATION REFERENCE
             // ==========================================
 
@@ -77,6 +59,20 @@ public class ReserveTraderPitchesFunction
                     req,
                     HttpStatusCode.BadRequest,
                     "ReservationReference is required.");
+            }
+
+
+            // ==========================================
+            // COMPANY
+            // ==========================================
+
+            if (string.IsNullOrWhiteSpace(
+                    request.CompanyName))
+            {
+                return await Error(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "CompanyName is required.");
             }
 
 
@@ -152,7 +148,7 @@ public class ReserveTraderPitchesFunction
 
 
             // ==========================================
-            // DUPLICATES
+            // CHECK DUPLICATES
             // ==========================================
 
             if (pitchIds.Count !=
@@ -227,16 +223,12 @@ public class ReserveTraderPitchesFunction
 
 
             // ==========================================
-            // CURRENT TIME
+            // CHECK CURRENT STATE
             // ==========================================
 
             var now =
                 DateTime.UtcNow;
 
-
-            // ==========================================
-            // CHECK CURRENT STATE
-            // ==========================================
 
             foreach (var pitch in pitches)
             {
@@ -278,10 +270,7 @@ public class ReserveTraderPitchesFunction
                         pitch.ReservedUntil.Value <= now
                     ))
                 {
-                    /*
-                     * Expired reservations are treated
-                     * as available.
-                     */
+                    // Treat expired reservation as available.
 
                     pitch.Status =
                         "Available";
@@ -336,11 +325,9 @@ public class ReserveTraderPitchesFunction
                     reservedUntil;
 
 
-                /*
-                 * Trader Pass does NOT exist yet.
-                 *
-                 * Leave this blank.
-                 */
+                // IMPORTANT:
+                // No Trader Pass exists yet.
+
                 pitch.TraderPassNumber =
                     "";
 
@@ -349,17 +336,11 @@ public class ReserveTraderPitchesFunction
                     request.CompanyName;
 
 
-                /*
-                 * Before checkout this stores the
-                 * temporary WooCommerce reservation
-                 * reference.
-                 *
-                 * Once the order is completed this
-                 * will be replaced with the real
-                 * WooCommerce order ID.
-                 */
+                // This remains blank until
+                // the WooCommerce order exists.
+
                 pitch.OrderId =
-                    request.ReservationReference;
+                    "";
 
 
                 pitch.PitchSize =
@@ -410,10 +391,10 @@ public class ReserveTraderPitchesFunction
 
                     reservationId,
 
-                    eventId,
-
                     reservationReference =
                         request.ReservationReference,
+
+                    eventId,
 
                     companyName =
                         request.CompanyName,
@@ -448,31 +429,38 @@ public class ReserveTraderPitchesFunction
     private static bool IsValidPitchId(
         string pitchId)
     {
-        if (string.IsNullOrWhiteSpace(pitchId))
+        if (string.IsNullOrWhiteSpace(
+                pitchId))
+        {
             return false;
+        }
 
 
         if (pitchId.Length < 2)
+        {
             return false;
+        }
 
 
         var row =
             pitchId[0];
 
 
-        /*
-         * New customer map is A-E only.
-         */
+        // Customer-facing rows are A-E.
 
         if (row < 'A' ||
             row > 'E')
+        {
             return false;
+        }
 
 
         if (!int.TryParse(
                 pitchId.Substring(1),
                 out var number))
+        {
             return false;
+        }
 
 
         return number >= 1 &&
@@ -492,44 +480,35 @@ public class ReserveTraderPitchesFunction
                 first,
                 out var row1,
                 out var number1))
+        {
             return false;
+        }
 
 
         if (!TryParsePitch(
                 second,
                 out var row2,
                 out var number2))
+        {
             return false;
+        }
 
 
-        // ==========================================
+        // --------------------------------------
         // NORMAL HORIZONTAL PAIR
-        // ==========================================
-
-        /*
-         * Any adjacent two spaces on the
-         * same row are valid.
-         *
-         * A4 + A5
-         * B6 + B7
-         * C2 + C3
-         * D8 + D9
-         * E3 + E4
-         */
+        // --------------------------------------
 
         if (row1 == row2 &&
             Math.Abs(
-                number1 -
-                number2
-            ) == 1)
+                number1 - number2) == 1)
         {
             return true;
         }
 
 
-        // ==========================================
+        // --------------------------------------
         // SPECIAL END-ON PAIRS
-        // ==========================================
+        // --------------------------------------
 
         return IsSpecialEndPair(
             row1,
@@ -540,7 +519,7 @@ public class ReserveTraderPitchesFunction
 
 
     // ==========================================
-    // SPECIAL END-ON PAIRS
+    // SPECIAL END-ON
     // ==========================================
 
     private static bool IsSpecialEndPair(
@@ -549,103 +528,81 @@ public class ReserveTraderPitchesFunction
         char row2,
         int number2)
     {
-        /*
-         * A1 + B1
-         */
+        return
 
-        if (
+            // A1 + B1
             (
                 row1 == 'A' &&
                 number1 == 1 &&
                 row2 == 'B' &&
                 number2 == 1
             )
+
             ||
+
             (
                 row1 == 'B' &&
                 number1 == 1 &&
                 row2 == 'A' &&
                 number2 == 1
             )
-        )
-        {
-            return true;
-        }
 
+            ||
 
-        /*
-         * A10 + B10
-         */
-
-        if (
+            // A10 + B10
             (
                 row1 == 'A' &&
                 number1 == 10 &&
                 row2 == 'B' &&
                 number2 == 10
             )
+
             ||
+
             (
                 row1 == 'B' &&
                 number1 == 10 &&
                 row2 == 'A' &&
                 number2 == 10
             )
-        )
-        {
-            return true;
-        }
 
+            ||
 
-        /*
-         * C1 + D1
-         */
-
-        if (
+            // C1 + D1
             (
                 row1 == 'C' &&
                 number1 == 1 &&
                 row2 == 'D' &&
                 number2 == 1
             )
+
             ||
+
             (
                 row1 == 'D' &&
                 number1 == 1 &&
                 row2 == 'C' &&
                 number2 == 1
             )
-        )
-        {
-            return true;
-        }
 
+            ||
 
-        /*
-         * C10 + D10
-         */
-
-        if (
+            // C10 + D10
             (
                 row1 == 'C' &&
                 number1 == 10 &&
                 row2 == 'D' &&
                 number2 == 10
             )
+
             ||
+
             (
                 row1 == 'D' &&
                 number1 == 10 &&
                 row2 == 'C' &&
                 number2 == 10
-            )
-        )
-        {
-            return true;
-        }
-
-
-        return false;
+            );
     }
 
 
@@ -658,15 +615,15 @@ public class ReserveTraderPitchesFunction
         out char row,
         out int number)
     {
-        row =
-            '\0';
-
-        number =
-            0;
+        row = '\0';
+        number = 0;
 
 
-        if (!IsValidPitchId(pitchId))
+        if (!IsValidPitchId(
+                pitchId))
+        {
             return false;
+        }
 
 
         row =
@@ -680,7 +637,7 @@ public class ReserveTraderPitchesFunction
 
 
     // ==========================================
-    // ERROR RESPONSE
+    // ERROR
     // ==========================================
 
     private static async Task<HttpResponseData> Error(
@@ -706,35 +663,36 @@ public class ReserveTraderPitchesFunction
 
 
     // ==========================================
-    // REQUEST MODEL
+    // REQUEST
     // ==========================================
 
     private class ReservationRequest
     {
-        /*
-         * No TraderPassNumber here.
-         *
-         * The real pass is created only after
-         * WooCommerce checkout completes.
-         */
-
-        public string CompanyName { get; set; }
-            = "";
+        public string ReservationReference
+        {
+            get;
+            set;
+        } = "";
 
 
-        /*
-         * Temporary reference generated by
-         * the website before checkout.
-         */
-        public string ReservationReference { get; set; }
-            = "";
+        public string CompanyName
+        {
+            get;
+            set;
+        } = "";
 
 
-        public string PitchSize { get; set; }
-            = "";
+        public string PitchSize
+        {
+            get;
+            set;
+        } = "";
 
 
-        public List<string> PitchIds { get; set; }
-            = new();
+        public List<string> PitchIds
+        {
+            get;
+            set;
+        } = new();
     }
 }
