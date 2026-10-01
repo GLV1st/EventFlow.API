@@ -67,7 +67,9 @@ builder.Services.AddSingleton<
 builder.Services.AddSingleton<
     ITraderRepository,
     TraderRepository>();
-
+builder.Services.AddSingleton<
+    ITraderPitchRepository,
+    TraderPitchRepository>();
 
 // =====================================
 // CATERING VENDOR SYSTEM
