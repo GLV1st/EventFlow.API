@@ -43,7 +43,6 @@ public class AllocateTraderPitchesFunction
                     "Invalid request.");
             }
 
-
             if (string.IsNullOrWhiteSpace(
                     request.TraderPassNumber))
             {
@@ -52,7 +51,6 @@ public class AllocateTraderPitchesFunction
                     HttpStatusCode.BadRequest,
                     "TraderPassNumber is required.");
             }
-
 
             if (string.IsNullOrWhiteSpace(
                     request.CompanyName))
@@ -63,7 +61,6 @@ public class AllocateTraderPitchesFunction
                     "CompanyName is required.");
             }
 
-
             if (request.PitchIds == null ||
                 request.PitchIds.Count == 0)
             {
@@ -72,7 +69,6 @@ public class AllocateTraderPitchesFunction
                     HttpStatusCode.BadRequest,
                     "At least one PitchId is required.");
             }
-
 
             // -----------------------------------------
             // NORMALISE PITCH SIZE
@@ -101,7 +97,6 @@ public class AllocateTraderPitchesFunction
                     "PitchSize must be 4x4 or 8x4.");
             }
 
-
             // -----------------------------------------
             // CHECK NUMBER OF PITCHES
             // -----------------------------------------
@@ -113,7 +108,6 @@ public class AllocateTraderPitchesFunction
                     HttpStatusCode.BadRequest,
                     $"A {request.PitchSize} pitch requires {requiredSquares} space(s).");
             }
-
 
             // -----------------------------------------
             // REMOVE DUPLICATES
@@ -136,7 +130,6 @@ public class AllocateTraderPitchesFunction
                     "Duplicate pitch IDs were supplied.");
             }
 
-
             // -----------------------------------------
             // VALIDATE PITCH IDs
             // -----------------------------------------
@@ -151,7 +144,6 @@ public class AllocateTraderPitchesFunction
                         $"Invalid pitch ID: {pitchId}");
                 }
             }
-
 
             // -----------------------------------------
             // VALIDATE 8x4 COMBINATION
@@ -169,7 +161,6 @@ public class AllocateTraderPitchesFunction
                         "The selected spaces are not a valid 8m x 4m pitch combination.");
                 }
             }
-
 
             // -----------------------------------------
             // LOAD SELECTED PITCHES
@@ -196,17 +187,8 @@ public class AllocateTraderPitchesFunction
                 pitches.Add(pitch);
             }
 
-
             // -----------------------------------------
             // CHECK EXISTING ALLOCATION
-            // -----------------------------------------
-            //
-            // This makes a repeated request safe.
-            //
-            // If the same trader already owns
-            // exactly these pitches, return success
-            // instead of trying to allocate them again.
-            //
             // -----------------------------------------
 
             var alreadyAllocated =
@@ -237,7 +219,6 @@ public class AllocateTraderPitchesFunction
                 return existingResponse;
             }
 
-
             // -----------------------------------------
             // CHECK AVAILABILITY
             // -----------------------------------------
@@ -254,7 +235,6 @@ public class AllocateTraderPitchesFunction
                     $"Pitch {unavailable.PitchId} is no longer available.");
             }
 
-
             // -----------------------------------------
             // PREPARE ALLOCATION
             // -----------------------------------------
@@ -266,20 +246,25 @@ public class AllocateTraderPitchesFunction
             {
                 pitch.Status = "Booked";
                 pitch.EventId = eventId;
+
                 pitch.TraderPassNumber =
                     request.TraderPassNumber;
+
                 pitch.CompanyName =
                     request.CompanyName;
+
                 pitch.OrderId =
                     request.OrderId ?? "";
+
                 pitch.PitchSize =
                     request.PitchSize ?? "";
+
                 pitch.SquaresUsed =
                     requiredSquares;
+
                 pitch.Updated =
                     now;
             }
-
 
             // -----------------------------------------
             // ATOMIC AZURE TRANSACTION
@@ -294,16 +279,11 @@ public class AllocateTraderPitchesFunction
                 Azure.RequestFailedException ex)
                 when (ex.Status == 412)
             {
-                // Another trader changed one of the
-                // selected pitches between our read
-                // and our transaction.
-
                 return await ErrorResponse(
                     req,
                     HttpStatusCode.Conflict,
                     "One or more of the selected pitches were booked by another trader. Please choose another location.");
             }
-
 
             // -----------------------------------------
             // SUCCESS
@@ -341,7 +321,6 @@ public class AllocateTraderPitchesFunction
         }
     }
 
-
     // =============================================
     // VALIDATE PITCH ID
     // =============================================
@@ -358,8 +337,9 @@ public class AllocateTraderPitchesFunction
         var row =
             pitchId[0];
 
+        // Customer-facing map is A-E only.
         if (row < 'A' ||
-            row > 'F')
+            row > 'E')
             return false;
 
         if (!int.TryParse(
@@ -370,7 +350,6 @@ public class AllocateTraderPitchesFunction
         return number >= 1 &&
                number <= 10;
     }
-
 
     // =============================================
     // VALIDATE 8 x 4 PAIR
@@ -392,17 +371,16 @@ public class AllocateTraderPitchesFunction
                 out var number2))
             return false;
 
-
         // -----------------------------------------
         // NORMAL HORIZONTAL PAIR
         // -----------------------------------------
 
+        // Any two adjacent spaces in the same row.
         if (row1 == row2 &&
             Math.Abs(number1 - number2) == 1)
         {
             return true;
         }
-
 
         // -----------------------------------------
         // SPECIAL END-ON PAIRS
@@ -420,7 +398,6 @@ public class AllocateTraderPitchesFunction
         return false;
     }
 
-
     // =============================================
     // SPECIAL END-ON PAIRS
     // =============================================
@@ -431,16 +408,10 @@ public class AllocateTraderPitchesFunction
         char row2,
         int number2)
     {
-        return
+        // A1 + B1
+        if (
             (
-                row1 == 'B' &&
-                number1 == 1 &&
-                row2 == 'C' &&
-                number2 == 1
-            )
-            ||
-            (
-                row1 == 'C' &&
+                row1 == 'A' &&
                 number1 == 1 &&
                 row2 == 'B' &&
                 number2 == 1
@@ -448,47 +419,77 @@ public class AllocateTraderPitchesFunction
             ||
             (
                 row1 == 'B' &&
-                number1 == 10 &&
-                row2 == 'C' &&
-                number2 == 10
-            )
-            ||
-            (
-                row1 == 'C' &&
-                number1 == 10 &&
-                row2 == 'B' &&
-                number2 == 10
-            )
-            ||
-            (
-                row1 == 'D' &&
                 number1 == 1 &&
-                row2 == 'E' &&
+                row2 == 'A' &&
                 number2 == 1
             )
-            ||
-            (
-                row1 == 'E' &&
-                number1 == 1 &&
-                row2 == 'D' &&
-                number2 == 1
-            )
-            ||
-            (
-                row1 == 'D' &&
-                number1 == 10 &&
-                row2 == 'E' &&
-                number2 == 10
-            )
-            ||
-            (
-                row1 == 'E' &&
-                number1 == 10 &&
-                row2 == 'D' &&
-                number2 == 10
-            );
-    }
+        )
+        {
+            return true;
+        }
 
+        // A10 + B10
+        if (
+            (
+                row1 == 'A' &&
+                number1 == 10 &&
+                row2 == 'B' &&
+                number2 == 10
+            )
+            ||
+            (
+                row1 == 'B' &&
+                number1 == 10 &&
+                row2 == 'A' &&
+                number2 == 10
+            )
+        )
+        {
+            return true;
+        }
+
+        // C1 + D1
+        if (
+            (
+                row1 == 'C' &&
+                number1 == 1 &&
+                row2 == 'D' &&
+                number2 == 1
+            )
+            ||
+            (
+                row1 == 'D' &&
+                number1 == 1 &&
+                row2 == 'C' &&
+                number2 == 1
+            )
+        )
+        {
+            return true;
+        }
+
+        // C10 + D10
+        if (
+            (
+                row1 == 'C' &&
+                number1 == 10 &&
+                row2 == 'D' &&
+                number2 == 10
+            )
+            ||
+            (
+                row1 == 'D' &&
+                number1 == 10 &&
+                row2 == 'C' &&
+                number2 == 10
+            )
+        )
+        {
+            return true;
+        }
+
+        return false;
+    }
 
     // =============================================
     // PARSE PITCH
@@ -513,7 +514,6 @@ public class AllocateTraderPitchesFunction
             out number);
     }
 
-
     // =============================================
     // ERROR RESPONSE
     // =============================================
@@ -535,7 +535,6 @@ public class AllocateTraderPitchesFunction
 
         return response;
     }
-
 
     // =============================================
     // REQUEST MODEL

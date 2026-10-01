@@ -18,7 +18,6 @@ public class ReserveTraderPitchesFunction
         _pitches = pitches;
     }
 
-
     [Function("ReserveTraderPitches")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
@@ -46,7 +45,6 @@ public class ReserveTraderPitchesFunction
                     "Invalid request.");
             }
 
-
             if (string.IsNullOrWhiteSpace(
                     request.TraderPassNumber))
             {
@@ -55,7 +53,6 @@ public class ReserveTraderPitchesFunction
                     HttpStatusCode.BadRequest,
                     "TraderPassNumber is required.");
             }
-
 
             if (string.IsNullOrWhiteSpace(
                     request.CompanyName))
@@ -66,7 +63,6 @@ public class ReserveTraderPitchesFunction
                     "CompanyName is required.");
             }
 
-
             if (request.PitchIds == null ||
                 request.PitchIds.Count == 0)
             {
@@ -75,7 +71,6 @@ public class ReserveTraderPitchesFunction
                     HttpStatusCode.BadRequest,
                     "At least one PitchId is required.");
             }
-
 
             // ==========================================
             // NORMALISE PITCH SIZE
@@ -104,7 +99,6 @@ public class ReserveTraderPitchesFunction
                     "PitchSize must be 4x4 or 8x4.");
             }
 
-
             // ==========================================
             // CHECK NUMBER OF PITCHES
             // ==========================================
@@ -118,7 +112,6 @@ public class ReserveTraderPitchesFunction
                     $"A {request.PitchSize} pitch requires {requiredSquares} space(s).");
             }
 
-
             // ==========================================
             // NORMALISE IDS
             // ==========================================
@@ -131,7 +124,6 @@ public class ReserveTraderPitchesFunction
                         .ToUpperInvariant())
                     .ToList();
 
-
             if (pitchIds.Count !=
                 pitchIds.Distinct().Count())
             {
@@ -140,7 +132,6 @@ public class ReserveTraderPitchesFunction
                     HttpStatusCode.BadRequest,
                     "Duplicate pitch IDs were supplied.");
             }
-
 
             // ==========================================
             // VALIDATE IDS
@@ -157,7 +148,6 @@ public class ReserveTraderPitchesFunction
                 }
             }
 
-
             // ==========================================
             // VALIDATE 8x4
             // ==========================================
@@ -172,7 +162,6 @@ public class ReserveTraderPitchesFunction
                     HttpStatusCode.BadRequest,
                     "The selected spaces are not a valid 8m x 4m pitch combination.");
             }
-
 
             // ==========================================
             // LOAD PITCHES
@@ -199,14 +188,12 @@ public class ReserveTraderPitchesFunction
                 pitches.Add(pitch);
             }
 
-
             // ==========================================
             // CHECK CURRENT STATE
             // ==========================================
 
             var now =
                 DateTime.UtcNow;
-
 
             foreach (var pitch in pitches)
             {
@@ -222,7 +209,6 @@ public class ReserveTraderPitchesFunction
                         $"Pitch {pitch.PitchId} is already booked.");
                 }
 
-
                 // --------------------------------------
                 // ACTIVE RESERVATION
                 // --------------------------------------
@@ -236,7 +222,6 @@ public class ReserveTraderPitchesFunction
                         HttpStatusCode.Conflict,
                         $"Pitch {pitch.PitchId} is currently reserved.");
                 }
-
 
                 // --------------------------------------
                 // EXPIRED RESERVATION
@@ -260,7 +245,6 @@ public class ReserveTraderPitchesFunction
                 }
             }
 
-
             // ==========================================
             // CREATE RESERVATION
             // ==========================================
@@ -270,7 +254,6 @@ public class ReserveTraderPitchesFunction
 
             var reservedUntil =
                 now.AddMinutes(5);
-
 
             foreach (var pitch in pitches)
             {
@@ -301,7 +284,6 @@ public class ReserveTraderPitchesFunction
                     now;
             }
 
-
             // ==========================================
             // ATOMIC RESERVATION
             // ==========================================
@@ -319,7 +301,6 @@ public class ReserveTraderPitchesFunction
                     HttpStatusCode.Conflict,
                     "One or more of the selected pitches were reserved by another customer. Please choose another location.");
             }
-
 
             // ==========================================
             // SUCCESS
@@ -357,7 +338,6 @@ public class ReserveTraderPitchesFunction
         }
     }
 
-
     // ==========================================
     // VALIDATE PITCH ID
     // ==========================================
@@ -373,8 +353,9 @@ public class ReserveTraderPitchesFunction
 
         var row = pitchId[0];
 
+        // Customer-facing map is A-E only.
         if (row < 'A' ||
-            row > 'F')
+            row > 'E')
             return false;
 
         if (!int.TryParse(
@@ -385,7 +366,6 @@ public class ReserveTraderPitchesFunction
         return number >= 1 &&
                number <= 10;
     }
-
 
     // ==========================================
     // VALIDATE 8x4
@@ -407,23 +387,27 @@ public class ReserveTraderPitchesFunction
                 out var number2))
             return false;
 
+        // ------------------------------------------
+        // NORMAL HORIZONTAL PAIR
+        // ------------------------------------------
 
-        // Normal horizontal pair
+        // Any two adjacent spaces in the same row.
         if (row1 == row2 &&
             Math.Abs(number1 - number2) == 1)
         {
             return true;
         }
 
+        // ------------------------------------------
+        // SPECIAL END-ON PAIRS
+        // ------------------------------------------
 
-        // Special end-on pairs
         return IsSpecialEndPair(
             row1,
             number1,
             row2,
             number2);
     }
-
 
     // ==========================================
     // SPECIAL END-ON
@@ -435,16 +419,10 @@ public class ReserveTraderPitchesFunction
         char row2,
         int number2)
     {
-        return
+        // A1 + B1
+        if (
             (
-                row1 == 'B' &&
-                number1 == 1 &&
-                row2 == 'C' &&
-                number2 == 1
-            )
-            ||
-            (
-                row1 == 'C' &&
+                row1 == 'A' &&
                 number1 == 1 &&
                 row2 == 'B' &&
                 number2 == 1
@@ -452,47 +430,77 @@ public class ReserveTraderPitchesFunction
             ||
             (
                 row1 == 'B' &&
-                number1 == 10 &&
-                row2 == 'C' &&
-                number2 == 10
-            )
-            ||
-            (
-                row1 == 'C' &&
-                number1 == 10 &&
-                row2 == 'B' &&
-                number2 == 10
-            )
-            ||
-            (
-                row1 == 'D' &&
                 number1 == 1 &&
-                row2 == 'E' &&
+                row2 == 'A' &&
                 number2 == 1
             )
-            ||
-            (
-                row1 == 'E' &&
-                number1 == 1 &&
-                row2 == 'D' &&
-                number2 == 1
-            )
-            ||
-            (
-                row1 == 'D' &&
-                number1 == 10 &&
-                row2 == 'E' &&
-                number2 == 10
-            )
-            ||
-            (
-                row1 == 'E' &&
-                number1 == 10 &&
-                row2 == 'D' &&
-                number2 == 10
-            );
-    }
+        )
+        {
+            return true;
+        }
 
+        // A10 + B10
+        if (
+            (
+                row1 == 'A' &&
+                number1 == 10 &&
+                row2 == 'B' &&
+                number2 == 10
+            )
+            ||
+            (
+                row1 == 'B' &&
+                number1 == 10 &&
+                row2 == 'A' &&
+                number2 == 10
+            )
+        )
+        {
+            return true;
+        }
+
+        // C1 + D1
+        if (
+            (
+                row1 == 'C' &&
+                number1 == 1 &&
+                row2 == 'D' &&
+                number2 == 1
+            )
+            ||
+            (
+                row1 == 'D' &&
+                number1 == 1 &&
+                row2 == 'C' &&
+                number2 == 1
+            )
+        )
+        {
+            return true;
+        }
+
+        // C10 + D10
+        if (
+            (
+                row1 == 'C' &&
+                number1 == 10 &&
+                row2 == 'D' &&
+                number2 == 10
+            )
+            ||
+            (
+                row1 == 'D' &&
+                number1 == 10 &&
+                row2 == 'C' &&
+                number2 == 10
+            )
+        )
+        {
+            return true;
+        }
+
+        return false;
+    }
 
     // ==========================================
     // PARSE PITCH
@@ -516,7 +524,6 @@ public class ReserveTraderPitchesFunction
             out number);
     }
 
-
     // ==========================================
     // ERROR
     // ==========================================
@@ -538,7 +545,6 @@ public class ReserveTraderPitchesFunction
 
         return response;
     }
-
 
     // ==========================================
     // REQUEST
