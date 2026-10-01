@@ -23,4 +23,7 @@ public interface ITraderPitchRepository
 
     Task AllocateAsync(
         IReadOnlyList<TraderPitchEntity> pitches);
+
+    Task ReserveAsync(
+        IReadOnlyList<TraderPitchEntity> pitches);
 }

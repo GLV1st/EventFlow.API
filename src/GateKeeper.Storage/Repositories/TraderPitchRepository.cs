@@ -10,8 +10,7 @@ public class TraderPitchRepository : ITraderPitchRepository
 {
     private readonly TableClient _table;
 
-    public TraderPitchRepository(
-        IConfiguration configuration)
+    public TraderPitchRepository(IConfiguration configuration)
     {
         var connectionString =
             configuration["StorageConnection"]
@@ -22,11 +21,6 @@ public class TraderPitchRepository : ITraderPitchRepository
             connectionString,
             "TraderPitches");
     }
-
-
-    // =====================================
-    // GET ONE PITCH
-    // =====================================
 
     public async Task<TraderPitchEntity?> GetAsync(
         string eventId,
@@ -48,16 +42,10 @@ public class TraderPitchRepository : ITraderPitchRepository
         }
     }
 
-
-    // =====================================
-    // GET ALL PITCHES
-    // =====================================
-
     public async Task<IReadOnlyList<TraderPitchEntity>> GetAllAsync(
         string eventId)
     {
-        var results =
-            new List<TraderPitchEntity>();
+        var results = new List<TraderPitchEntity>();
 
         await foreach (
             var pitch in _table.QueryAsync<TraderPitchEntity>(
@@ -69,16 +57,10 @@ public class TraderPitchRepository : ITraderPitchRepository
         return results;
     }
 
-
-    // =====================================
-    // GET AVAILABLE PITCHES
-    // =====================================
-
     public async Task<IReadOnlyList<TraderPitchEntity>> GetAvailableAsync(
         string eventId)
     {
-        var results =
-            new List<TraderPitchEntity>();
+        var results = new List<TraderPitchEntity>();
 
         await foreach (
             var pitch in _table.QueryAsync<TraderPitchEntity>(
@@ -92,11 +74,6 @@ public class TraderPitchRepository : ITraderPitchRepository
         return results;
     }
 
-
-    // =====================================
-    // UPSERT
-    // =====================================
-
     public async Task UpsertAsync(
         TraderPitchEntity pitch)
     {
@@ -104,11 +81,6 @@ public class TraderPitchRepository : ITraderPitchRepository
             pitch,
             TableUpdateMode.Replace);
     }
-
-
-    // =====================================
-    // DELETE
-    // =====================================
 
     public async Task DeleteAsync(
         string eventId,
@@ -127,46 +99,17 @@ public class TraderPitchRepository : ITraderPitchRepository
         }
     }
 
-
-    // =====================================
-    // ALLOCATE PITCHES
-    // =====================================
-    //
-    // This uses an Azure Table transaction.
-    //
-    // All selected pitches are updated
-    // together.
-    //
-    // If another trader has changed one
-    // of the pitches since we read it,
-    // the transaction fails and NONE of
-    // the pitches are allocated.
-    //
-    // =====================================
-
     public async Task AllocateAsync(
         IReadOnlyList<TraderPitchEntity> pitches)
     {
-        if (pitches == null ||
-            pitches.Count == 0)
+        if (pitches == null || pitches.Count == 0)
         {
             throw new ArgumentException(
                 "At least one pitch is required.",
                 nameof(pitches));
         }
 
-
-        if (pitches.Count > 100)
-        {
-            throw new ArgumentException(
-                "A maximum of 100 pitches can be allocated in one transaction.",
-                nameof(pitches));
-        }
-
-
-        var actions =
-            new List<TableTransactionAction>();
-
+        var actions = new List<TableTransactionAction>();
 
         foreach (var pitch in pitches)
         {
@@ -177,8 +120,30 @@ public class TraderPitchRepository : ITraderPitchRepository
                     pitch.ETag));
         }
 
+        await _table.SubmitTransactionAsync(actions);
+    }
 
-        await _table.SubmitTransactionAsync(
-            actions);
+    public async Task ReserveAsync(
+        IReadOnlyList<TraderPitchEntity> pitches)
+    {
+        if (pitches == null || pitches.Count == 0)
+        {
+            throw new ArgumentException(
+                "At least one pitch is required.",
+                nameof(pitches));
+        }
+
+        var actions = new List<TableTransactionAction>();
+
+        foreach (var pitch in pitches)
+        {
+            actions.Add(
+                new TableTransactionAction(
+                    TableTransactionActionType.UpdateReplace,
+                    pitch,
+                    pitch.ETag));
+        }
+
+        await _table.SubmitTransactionAsync(actions);
     }
 }
