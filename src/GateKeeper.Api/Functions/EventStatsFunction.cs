@@ -148,33 +148,19 @@ public class EventStatsFunction
             );
 
         var traderPeopleCheckedIn =
-            traders
-                .Where(t =>
-                    t.CheckedIn &&
-                    !t.CheckedOut
-                )
-                .Sum(t =>
-                    Math.Max(0, t.NumberOfPeople)
-                );
+            traders.Sum(t =>
+                Math.Max(0, t.PeopleOnSite)
+            );
 
         var traderPeopleCheckedOut =
-            traders
-                .Where(t =>
-                    t.CheckedOut
-                )
-                .Sum(t =>
-                    Math.Max(0, t.NumberOfPeople)
-                );
+            traders.Sum(t =>
+                Math.Max(0, t.NumberOfPeople - t.PeopleOnSite)
+            );
 
         var traderPeopleNotYetIn =
-            traders
-                .Where(t =>
-                    !t.CheckedIn &&
-                    !t.CheckedOut
-                )
-                .Sum(t =>
-                    Math.Max(0, t.NumberOfPeople)
-                );
+            traders.Sum(t =>
+                Math.Max(0, t.NumberOfPeople - t.PeopleOnSite)
+            );
 
         // =====================================
         // CATERING STATISTICS
@@ -189,33 +175,19 @@ public class EventStatsFunction
             );
 
         var cateringPeopleCheckedIn =
-            cateringVendors
-                .Where(v =>
-                    v.CheckedIn &&
-                    !v.CheckedOut
-                )
-                .Sum(v =>
-                    Math.Max(0, v.NumberOfPeople)
-                );
+            cateringVendors.Sum(v =>
+                Math.Max(0, v.PeopleOnSite)
+            );
 
         var cateringPeopleCheckedOut =
-            cateringVendors
-                .Where(v =>
-                    v.CheckedOut
-                )
-                .Sum(v =>
-                    Math.Max(0, v.NumberOfPeople)
-                );
+            cateringVendors.Sum(v =>
+                Math.Max(0, v.NumberOfPeople - v.PeopleOnSite)
+            );
 
         var cateringPeopleNotYetIn =
-            cateringVendors
-                .Where(v =>
-                    !v.CheckedIn &&
-                    !v.CheckedOut
-                )
-                .Sum(v =>
-                    Math.Max(0, v.NumberOfPeople)
-                );
+            cateringVendors.Sum(v =>
+                Math.Max(0, v.NumberOfPeople - v.PeopleOnSite)
+            );
 
         // =====================================
         // COMBINED PASS / TICKET TOTALS

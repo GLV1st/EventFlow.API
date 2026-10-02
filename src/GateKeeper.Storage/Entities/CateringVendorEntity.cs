@@ -86,6 +86,9 @@ public class CateringVendorEntity : ITableEntity
 
     public int NumberOfPeople { get; set; }
 
+    // Number of people from this pass currently on site.
+    public int PeopleOnSite { get; set; }
+
 
 // ============================================================
 // DOCUMENTS

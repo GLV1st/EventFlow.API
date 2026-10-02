@@ -101,31 +101,46 @@ public class CheckInFunction
                     return wrongEvent;
                 }
 
-                // Already checked in.
-                if (trader.CheckedIn)
+                // Trader/food-vendor passes represent a group.
+                // Each scan adds ONE person, up to NumberOfPeople.
+                var bookedPeople = Math.Max(0, trader.NumberOfPeople);
+                var peopleOnSite = Math.Max(0, trader.PeopleOnSite);
+
+                if (bookedPeople <= 0)
                 {
-                    var response =
-                        req.CreateResponse(
-                            HttpStatusCode.OK
-                        );
-
-                    await response.WriteAsJsonAsync(
-                        new CheckInResponse
-                        {
-                            Status = "ALREADY_CHECKED_IN",
-                            Message = "Trader already checked in",
-                            TicketNumber = trader.TraderPassNumber,
-                            CustomerName = trader.ContactName,
-                            TicketType = trader.TraderType
-                        }
-                    );
-
+                    var response = req.CreateResponse(HttpStatusCode.OK);
+                    await response.WriteAsJsonAsync(new CheckInResponse
+                    {
+                        Status = "CAPACITY_REACHED",
+                        Message = "Trader Pass has no people booked",
+                        TicketNumber = trader.TraderPassNumber,
+                        CustomerName = trader.ContactName,
+                        TicketType = trader.TraderType,
+                        PeopleOnSite = peopleOnSite,
+                        PeopleBooked = bookedPeople
+                    });
                     return response;
                 }
 
-                // Check in trader.
+                if (peopleOnSite >= bookedPeople)
+                {
+                    var response = req.CreateResponse(HttpStatusCode.OK);
+                    await response.WriteAsJsonAsync(new CheckInResponse
+                    {
+                        Status = "CAPACITY_REACHED",
+                        Message = $"Maximum reached: {peopleOnSite}/{bookedPeople} people already on site",
+                        TicketNumber = trader.TraderPassNumber,
+                        CustomerName = trader.ContactName,
+                        TicketType = trader.TraderType,
+                        PeopleOnSite = peopleOnSite,
+                        PeopleBooked = bookedPeople
+                    });
+                    return response;
+                }
+
                 var scanTime = DateTime.UtcNow;
 
+                trader.PeopleOnSite = peopleOnSite + 1;
                 trader.CheckedIn = true;
                 trader.CheckedOut = false;
                 trader.CheckedInAt = scanTime;
@@ -134,22 +149,17 @@ public class CheckInFunction
 
                 await _traders.UpdateTraderAsync(trader);
 
-                var okTrader =
-                    req.CreateResponse(
-                        HttpStatusCode.OK
-                    );
-
-                await okTrader.WriteAsJsonAsync(
-                    new CheckInResponse
-                    {
-                        Status = "SUCCESS",
-                        Message = "Welcome! Trader checked in",
-                        TicketNumber = trader.TraderPassNumber,
-                        CustomerName = trader.ContactName,
-                        TicketType = trader.TraderType
-                    }
-                );
-
+                var okTrader = req.CreateResponse(HttpStatusCode.OK);
+                await okTrader.WriteAsJsonAsync(new CheckInResponse
+                {
+                    Status = "SUCCESS",
+                    Message = $"Welcome! Trader checked in ({trader.PeopleOnSite}/{bookedPeople})",
+                    TicketNumber = trader.TraderPassNumber,
+                    CustomerName = trader.ContactName,
+                    TicketType = trader.TraderType,
+                    PeopleOnSite = trader.PeopleOnSite,
+                    PeopleBooked = bookedPeople
+                });
                 return okTrader;
             }
         }
@@ -188,22 +198,46 @@ public class CheckInFunction
                     return wrongEvent;
                 }
 
-                if (catering.CheckedIn)
+                // Food-vendor passes use the same COP-TRADER- format.
+                // Each scan adds ONE person, up to NumberOfPeople.
+                var bookedPeople = Math.Max(0, catering.NumberOfPeople);
+                var peopleOnSite = Math.Max(0, catering.PeopleOnSite);
+
+                if (bookedPeople <= 0)
                 {
                     var response = req.CreateResponse(HttpStatusCode.OK);
                     await response.WriteAsJsonAsync(new CheckInResponse
                     {
-                        Status = "ALREADY_CHECKED_IN",
-                        Message = "Catering Pass already checked in",
+                        Status = "CAPACITY_REACHED",
+                        Message = "Food Vendor Pass has no people booked",
                         TicketNumber = catering.CateringPassNumber,
                         CustomerName = catering.CompanyName,
-                        TicketType = "Catering"
+                        TicketType = "Catering",
+                        PeopleOnSite = peopleOnSite,
+                        PeopleBooked = bookedPeople
+                    });
+                    return response;
+                }
+
+                if (peopleOnSite >= bookedPeople)
+                {
+                    var response = req.CreateResponse(HttpStatusCode.OK);
+                    await response.WriteAsJsonAsync(new CheckInResponse
+                    {
+                        Status = "CAPACITY_REACHED",
+                        Message = $"Maximum reached: {peopleOnSite}/{bookedPeople} people already on site",
+                        TicketNumber = catering.CateringPassNumber,
+                        CustomerName = catering.CompanyName,
+                        TicketType = "Catering",
+                        PeopleOnSite = peopleOnSite,
+                        PeopleBooked = bookedPeople
                     });
                     return response;
                 }
 
                 var scanTime = DateTime.UtcNow;
 
+                catering.PeopleOnSite = peopleOnSite + 1;
                 catering.CheckedIn = true;
                 catering.CheckedOut = false;
                 catering.CheckedInAt = scanTime;
@@ -215,10 +249,12 @@ public class CheckInFunction
                 await okCatering.WriteAsJsonAsync(new CheckInResponse
                 {
                     Status = "SUCCESS",
-                    Message = "Welcome! Catering Pass checked in",
+                    Message = $"Welcome! Food Vendor checked in ({catering.PeopleOnSite}/{bookedPeople})",
                     TicketNumber = catering.CateringPassNumber,
                     CustomerName = catering.CompanyName,
-                    TicketType = "Catering"
+                    TicketType = "Catering",
+                    PeopleOnSite = catering.PeopleOnSite,
+                    PeopleBooked = bookedPeople
                 });
                 return okCatering;
             }

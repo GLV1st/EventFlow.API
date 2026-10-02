@@ -78,6 +78,9 @@ public class TraderEntity : ITableEntity
 
     public int NumberOfPeople { get; set; }
 
+    // Number of people from this pass currently on site.
+    public int PeopleOnSite { get; set; } = 0;
+
 
     // =====================================
     // TERMS & CONDITIONS
