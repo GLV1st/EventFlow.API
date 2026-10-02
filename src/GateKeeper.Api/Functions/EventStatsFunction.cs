@@ -73,8 +73,18 @@ public class EventStatsFunction
         // NORMAL TICKET STATISTICS
         // =====================================
 
+        // A normal ticket is counted as SOLD when:
+        // 1. It is linked to a WooCommerce order, OR
+        // 2. It is a manually generated/physical ticket and has been
+        //    successfully scanned for the first time.
+        //
+        // Manually generated tickets have no OrderId and FirstScanAt
+        // remains null until their first successful entry scan.
         var normalTickets =
-            tickets.Count;
+            tickets.Count(t =>
+                !string.IsNullOrWhiteSpace(t.OrderId) ||
+                t.FirstScanAt != null
+            );
 
         var normalCheckedIn =
             tickets.Count(t =>

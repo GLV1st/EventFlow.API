@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GateKeeper.Shared")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0c5930b632a41c3653ddccfbfbce922843739f82")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b6833a5f9c9c2c8fd69a901536ddf5dbdd2cfac5")]
 [assembly: System.Reflection.AssemblyProductAttribute("GateKeeper.Shared")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GateKeeper.Shared")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
