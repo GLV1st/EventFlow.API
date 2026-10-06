@@ -146,4 +146,46 @@ public class TraderPitchRepository : ITraderPitchRepository
 
         await _table.SubmitTransactionAsync(actions);
     }
+    public async Task ReallocateAsync(
+    IReadOnlyList<TraderPitchEntity> oldPitches,
+    IReadOnlyList<TraderPitchEntity> newPitches)
+{
+    if (oldPitches == null || oldPitches.Count == 0)
+    {
+        throw new ArgumentException(
+            "At least one old pitch is required.",
+            nameof(oldPitches));
+    }
+
+    if (newPitches == null || newPitches.Count == 0)
+    {
+        throw new ArgumentException(
+            "At least one new pitch is required.",
+            nameof(newPitches));
+    }
+
+    var actions = new List<TableTransactionAction>();
+
+    // Release the old pitches
+    foreach (var pitch in oldPitches)
+    {
+        actions.Add(
+            new TableTransactionAction(
+                TableTransactionActionType.UpdateReplace,
+                pitch,
+                pitch.ETag));
+    }
+
+    // Book the new pitches
+    foreach (var pitch in newPitches)
+    {
+        actions.Add(
+            new TableTransactionAction(
+                TableTransactionActionType.UpdateReplace,
+                pitch,
+                pitch.ETag));
+    }
+
+    await _table.SubmitTransactionAsync(actions);
+}
 }
