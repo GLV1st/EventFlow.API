@@ -21,7 +21,6 @@ public class GenerateTicketsFunction
         _tickets = tickets;
     }
 
-
     [Function("GenerateTickets")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
@@ -31,10 +30,6 @@ public class GenerateTicketsFunction
         )]
         HttpRequestData req)
     {
-        // =====================================
-        // READ REQUEST
-        // =====================================
-
         var request =
             await req.ReadFromJsonAsync<GenerateTicketsRequest>();
 
@@ -46,11 +41,6 @@ public class GenerateTicketsFunction
                 "Invalid request.");
         }
 
-
-        // =====================================
-        // VALIDATE
-        // =====================================
-
         if (string.IsNullOrWhiteSpace(request.EventId))
         {
             return await ErrorResponse(
@@ -58,7 +48,6 @@ public class GenerateTicketsFunction
                 HttpStatusCode.BadRequest,
                 "EventId is required.");
         }
-
 
         if (string.IsNullOrWhiteSpace(request.EventName))
         {
@@ -68,7 +57,6 @@ public class GenerateTicketsFunction
                 "EventName is required.");
         }
 
-
         if (string.IsNullOrWhiteSpace(request.TicketPrefix))
         {
             return await ErrorResponse(
@@ -76,7 +64,6 @@ public class GenerateTicketsFunction
                 HttpStatusCode.BadRequest,
                 "TicketPrefix is required.");
         }
-
 
         if (request.Quantity <= 0)
         {
@@ -86,48 +73,81 @@ public class GenerateTicketsFunction
                 "Quantity must be greater than zero.");
         }
 
+        // =====================================
+        // COP-CARN UNDER 14 SAFETY CHECK
+        // =====================================
+        //
+        // Under 14 tickets use wristbands and
+        // therefore MUST NOT receive a GateKeeper
+        // ticket number or barcode.
+        //
+        // This is a safety backstop at API level.
+        // Even if WooCommerce accidentally sends
+        // an Under 14 request, this API will NOT:
+        //
+        // - create an event
+        // - reserve ticket numbers
+        // - create TicketEntity records
+        // - generate barcodes
+        //
+        // It simply returns an empty ticket list.
+        //
+
+        if (
+            request.EventId.Equals(
+                "COP-CARN",
+                StringComparison.OrdinalIgnoreCase
+            )
+            &&
+            !string.IsNullOrWhiteSpace(request.TicketType)
+            &&
+            request.TicketType.Contains(
+                "Under 14",
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            Console.WriteLine(
+                "COP-CARN Under 14 ticket request received. " +
+                "No GateKeeper tickets or ticket numbers will be generated."
+            );
+
+            var emptyResponse =
+                req.CreateResponse(
+                    HttpStatusCode.OK
+                );
+
+            await emptyResponse.WriteAsJsonAsync(
+                new List<GenerateTicketsResponse>()
+            );
+
+            return emptyResponse;
+        }
 
         // =====================================
-        // FIND EVENT
+        // FIND / CREATE EVENT
         // =====================================
 
         var evt =
             await _events.GetEventAsync(
                 request.EventId);
 
-
-        // =====================================
-        // CREATE EVENT IF IT DOESN'T EXIST
-        // =====================================
-
         if (evt == null)
         {
             evt = new EventEntity
             {
                 PartitionKey = "EVENT",
-
-                RowKey =
-                    request.EventId,
-
-                Name =
-                    request.EventName,
-
+                RowKey = request.EventId,
+                Name = request.EventName,
                 TicketPrefix =
                     request.TicketPrefix
                         .Trim()
                         .ToUpperInvariant(),
-
                 NextTicketNumber = 1
             };
 
-
             await _events.AddEventAsync(evt);
         }
-
-
-        // =====================================
-        // SAFETY CHECK
-        // =====================================
 
         if (string.IsNullOrWhiteSpace(
             evt.TicketPrefix))
@@ -137,7 +157,6 @@ public class GenerateTicketsFunction
                 HttpStatusCode.InternalServerError,
                 "Event has no ticket prefix.");
         }
-
 
         // =====================================
         // RESERVE TICKET NUMBERS
@@ -168,14 +187,12 @@ public class GenerateTicketsFunction
                 "Unable to reserve ticket numbers.");
         }
 
-
         // =====================================
         // GENERATE TICKETS
         // =====================================
 
         var response =
             new List<GenerateTicketsResponse>();
-
 
         for (
             int i = 0;
@@ -184,11 +201,6 @@ public class GenerateTicketsFunction
         {
             var ticketNumber =
                 $"{evt.TicketPrefix}-{(firstTicketNumber + i):D6}";
-
-
-            // =====================================
-            // CREATE TICKET
-            // =====================================
 
             var ticket =
                 new TicketEntity
@@ -215,63 +227,46 @@ public class GenerateTicketsFunction
                         request.CustomerEmail,
 
                     WalletToken =
-                        Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant(),
+                        Convert.ToHexString(
+                            RandomNumberGenerator.GetBytes(32)
+                        ).ToLowerInvariant(),
 
                     CheckedIn = false,
-
                     CheckedInAt = null,
-
                     CheckedOut = false,
-
                     CheckedOutAt = null,
-
                     Cancelled = false,
-
                     FirstScanAt = null,
-
-                    Created =
-                        DateTime.UtcNow,
-
-                    Updated =
-                        DateTime.UtcNow
+                    Created = DateTime.UtcNow,
+                    Updated = DateTime.UtcNow
                 };
 
-
-            // =====================================
-            // SAVE TICKET
-            // =====================================
-
-            await _tickets.AddTicketAsync(
-                ticket);
-
+            await _tickets.AddTicketAsync(ticket);
 
             response.Add(
                 new GenerateTicketsResponse
                 {
                     TicketNumber =
                         ticketNumber,
+
                     WalletToken =
                         ticket.WalletToken
                 });
         }
 
-
         // =====================================
-        // RESPONSE
+        // RETURN RESPONSE
         // =====================================
 
         var http =
             req.CreateResponse(
                 HttpStatusCode.OK);
 
-
         await http.WriteAsJsonAsync(
             response);
 
-
         return http;
     }
-
 
     // =====================================
     // ERROR RESPONSE
@@ -286,14 +281,12 @@ public class GenerateTicketsFunction
         var response =
             req.CreateResponse(status);
 
-
         await response.WriteAsJsonAsync(
             new
             {
                 Status = "ERROR",
                 Message = message
             });
-
 
         return response;
     }
