@@ -3,6 +3,7 @@ using GateKeeper.Storage.Interfaces;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace GateKeeper.Api.Functions;
@@ -122,6 +123,52 @@ public class TraderCreateFunction
 
             trader.RowKey =
                 trader.TraderPassNumber;
+
+            // =====================================
+            // DOCUMENT UPLOAD TOKEN
+            // =====================================
+            //
+            // Generate a cryptographically secure
+            // random token for the Trader Stall
+            // document upload page.
+            //
+            // This token is NOT the Trader Pass number.
+            //
+
+            var tokenBytes = new byte[32];
+
+            RandomNumberGenerator.Fill(tokenBytes);
+
+            trader.DocumentUploadToken =
+                Convert.ToBase64String(tokenBytes)
+                    .Replace("+", "-")
+                    .Replace("/", "_")
+                    .Replace("=", "");
+
+            // =====================================
+            // DOCUMENT UPLOAD TOKEN EXPIRY
+            // =====================================
+            //
+            // The upload link remains valid for
+            // 30 days from creation.
+            //
+
+            trader.DocumentUploadTokenExpiresAt =
+                DateTimeOffset.UtcNow.AddDays(30);
+
+            // =====================================
+            // DOCUMENT VALUES
+            // =====================================
+            //
+            // Documents are uploaded later.
+            // Start with empty references.
+            //
+
+            trader.RiskAssessment = "";
+
+            trader.PublicLiabilityInsurance = "";
+
+            trader.FoodHandlingCertificate = "";
 
             // =====================================
             // AUDIT

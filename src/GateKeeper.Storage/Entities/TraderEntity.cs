@@ -19,7 +19,7 @@ public class TraderEntity : ITableEntity
     // =====================================
 
     // Links this trader to the existing Events table.
-    // For Cop Carnival this will be COP-CARN.
+    // For COP Carnival this will be COP-CARN.
     public string EventId { get; set; } = "";
 
     public string EventName { get; set; } = "";
@@ -102,6 +102,31 @@ public class TraderEntity : ITableEntity
 
     // Reference to the Stall Terms & Conditions PDF.
     public string TermsPdfUrl { get; set; } = "";
+
+
+    // =====================================
+    // DOCUMENT UPLOAD
+    // =====================================
+
+    // Secure token used by the Trader Stall
+    // document upload page.
+    public string DocumentUploadToken { get; set; } = "";
+
+    // Expiry time for the secure document
+    // upload token.
+    public DateTimeOffset? DocumentUploadTokenExpiresAt { get; set; }
+
+    // Stored reference/path for the uploaded
+    // Risk Assessment document.
+    public string RiskAssessment { get; set; } = "";
+
+    // Stored reference/path for the uploaded
+    // Public Liability Insurance document.
+    public string PublicLiabilityInsurance { get; set; } = "";
+
+    // Stored reference/path for the uploaded
+    // Food Handling Certificate.
+    public string FoodHandlingCertificate { get; set; } = "";
 
 
     // =====================================
