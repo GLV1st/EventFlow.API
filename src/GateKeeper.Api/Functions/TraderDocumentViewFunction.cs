@@ -69,16 +69,48 @@ public class TraderDocumentViewFunction
             }
 
 
+            /*
+             * The Trader Dashboard sends document types using
+             * kebab-case:
+             *
+             *   risk-assessment
+             *   public-liability
+             *   food-handling
+             *
+             * Accept those values as well as the original
+             * PascalCase names so existing callers continue
+             * to work.
+             *
+             * The actual blob path is taken from the Trader
+             * record, so the uploaded file can be PDF, JPG,
+             * JPEG or PNG without needing to know the extension.
+             */
+
+            var normalisedDocumentType =
+                documentType
+                    .Trim()
+                    .ToLowerInvariant();
+
+
             var blobPath =
-                documentType switch
+                normalisedDocumentType switch
                 {
-                    "RiskAssessment" =>
+                    "risk-assessment" =>
                         trader.RiskAssessment,
 
-                    "PublicLiabilityInsurance" =>
+                    "riskassessment" =>
+                        trader.RiskAssessment,
+
+                    "public-liability" =>
                         trader.PublicLiabilityInsurance,
 
-                    "FoodHandlingCertificate" =>
+                    "publicliabilityinsurance" =>
+                        trader.PublicLiabilityInsurance,
+
+                    "food-handling" =>
+                        trader.FoodHandlingCertificate,
+
+                    "foodhandlingcertificate" =>
                         trader.FoodHandlingCertificate,
 
                     _ =>
@@ -159,10 +191,12 @@ public class TraderDocumentViewFunction
                 )
             );
 
+
             response.Headers.Add(
                 "Content-Disposition",
                 "inline"
             );
+
 
             response.Headers.Add(
                 "Cache-Control",
@@ -232,12 +266,14 @@ public class TraderDocumentViewFunction
                 statusCode
             );
 
+
         await response.WriteAsJsonAsync(
             new
             {
                 error = message
             }
         );
+
 
         return response;
     }
