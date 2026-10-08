@@ -58,6 +58,9 @@ builder.Services.AddSingleton<
 builder.Services.AddSingleton<
     ITicketRepository,
     TicketRepository>();
+builder.Services.AddSingleton<
+    ITicketScanLogRepository,
+    TicketScanLogRepository>();
 
 
 // =====================================

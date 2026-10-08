@@ -1,5 +1,6 @@
 using GateKeeper.Shared.DTOs;
 using GateKeeper.Storage.Interfaces;
+using GateKeeper.Storage.Entities;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using System.Net;
@@ -11,15 +12,18 @@ public class CheckOutFunction
     private readonly ITicketRepository _tickets;
     private readonly ITraderRepository _traders;
     private readonly ICateringVendorRepository _cateringVendors;
+    private readonly ITicketScanLogRepository _scanLog;
 
     public CheckOutFunction(
         ITicketRepository tickets,
         ITraderRepository traders,
-        ICateringVendorRepository cateringVendors)
+        ICateringVendorRepository cateringVendors,
+        ITicketScanLogRepository scanLog)
     {
         _tickets = tickets;
         _traders = traders;
         _cateringVendors = cateringVendors;
+        _scanLog = scanLog;
     }
 
     [Function("CheckOut")]
@@ -128,6 +132,12 @@ public class CheckOutFunction
 
                 await _traders.UpdateTraderAsync(trader);
 
+                await SaveScanLogAsync(
+                    request.EventId,
+                    checkoutTime,
+                    "OUT",
+                    trader.TraderType);
+
                 var okTrader = req.CreateResponse(HttpStatusCode.OK);
                 await okTrader.WriteAsJsonAsync(new CheckOutResponse
                 {
@@ -203,6 +213,12 @@ public class CheckOutFunction
                 catering.CheckedOutAt = catering.PeopleOnSite == 0 ? checkoutTime : null;
 
                 await _cateringVendors.UpdateCateringVendorAsync(catering);
+
+                await SaveScanLogAsync(
+                    request.EventId,
+                    checkoutTime,
+                    "OUT",
+                    "Catering");
 
                 var okCatering = req.CreateResponse(HttpStatusCode.OK);
                 await okCatering.WriteAsJsonAsync(new CheckOutResponse
@@ -334,6 +350,12 @@ public class CheckOutFunction
 
         await _tickets.UpdateTicketAsync(ticket);
 
+        await SaveScanLogAsync(
+            request.EventId,
+            ticketCheckoutTime,
+            "OUT",
+            ticket.TicketType);
+
         // =====================================
         // SUCCESS
         // =====================================
@@ -355,5 +377,32 @@ public class CheckOutFunction
         );
 
         return ok;
+    }
+
+    private async Task SaveScanLogAsync(
+        string eventId,
+        DateTime scanTime,
+        string scanType,
+        string ticketType)
+    {
+        try
+        {
+            await _scanLog.AddScanAsync(new TicketScanLogEntity
+            {
+                PartitionKey = eventId,
+                RowKey = Guid.NewGuid().ToString("N"),
+                ScanTime = scanTime,
+                ScanType = scanType,
+                TicketType = ticketType
+            });
+        }
+        catch (Exception ex)
+        {
+            // Do not turn a successful ticket scan into a failed scan
+            // just because the reporting log could not be written.
+            // The failure is logged for investigation.
+            Console.WriteLine(
+                $"SCAN LOG ERROR: {ex.Message}");
+        }
     }
 }
