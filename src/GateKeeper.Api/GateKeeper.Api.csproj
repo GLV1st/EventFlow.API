@@ -1,7 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AzureFunctionsVersion>V4</AzureFunctionsVersion>
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -9,56 +10,25 @@
   </PropertyGroup>
 
   <ItemGroup>
-
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
 
-    <PackageReference
-      Include="Microsoft.Azure.Functions.Worker"
-      Version="2.52.0" />
-
-    <PackageReference
-      Include="Microsoft.Azure.Functions.Worker.OpenTelemetry"
-      Version="1.2.0" />
-
-    <PackageReference
-      Include="OpenTelemetry.Extensions.Hosting"
-      Version="1.15.3" />
-
-    <PackageReference
-      Include="Azure.Monitor.OpenTelemetry.Exporter"
-      Version="1.7.0" />
-
-    <PackageReference
-      Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore"
-      Version="2.1.0" />
-
-    <PackageReference
-      Include="Azure.Communication.Email"
-      Version="1.1.0" />
-
-    <PackageReference
-      Include="Microsoft.Azure.Functions.Worker.Sdk"
-      Version="2.0.7"
-      OutputItemType="Analyzer"
-      PrivateAssets="all" />
-
+    <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.OpenTelemetry" Version="1.2.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.7.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.1.0" />
+    <PackageReference Include="Azure.Communication.Email" Version="1.1.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.7" OutputItemType="Analyzer" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="8.0.1" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
 
   <ItemGroup>
-
-    <ProjectReference
-      Include="..\GateKeeper.Core\GateKeeper.Core.csproj" />
-
-    <ProjectReference
-      Include="..\GateKeeper.Storage\GateKeeper.Storage.csproj" />
-
-    <ProjectReference
-      Include="..\GateKeeper.Shared\GateKeeper.Shared.csproj" />
-
+    <ProjectReference Include="..\GateKeeper.Core\GateKeeper.Core.csproj" />
+    <ProjectReference Include="..\GateKeeper.Storage\GateKeeper.Storage.csproj" />
+    <ProjectReference Include="..\GateKeeper.Shared\GateKeeper.Shared.csproj" />
   </ItemGroup>
 
 </Project>
