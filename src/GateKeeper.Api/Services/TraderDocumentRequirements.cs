@@ -5,8 +5,8 @@ using Microsoft.Extensions.Configuration;
 namespace GateKeeper.Api.Services;
 
 /// <summary>
-/// Azure Table Storage-backed source of truth for trader document requirements.
-/// Defaults are created only when a category has no saved row, so later edits persist.
+/// Single source of truth for mandatory trader documents.
+/// Keep category names aligned with the WordPress stall-type list.
 /// </summary>
 public sealed class TraderDocumentRequirements
 {
@@ -14,131 +14,91 @@ public sealed class TraderDocumentRequirements
     private const string TableName = "TraderDocumentRules";
     private readonly TableClient _table;
 
-    private static readonly string[] CategoryNames =
-    {
-        "Fudge / Sweets",
-        "Clothing / Fashion",
-        "Jewellery / Accessories",
-        "Arts & Crafts",
-        "Toys / Children",
-        "Home / Gifts",
-        "Business / Services",
-        "Charity",
-        "Entertainment / Activities",
-        "Food / Drink",
-        "Other"
-    };
-
-    public static IReadOnlyList<string> Categories => CategoryNames;
-
     public TraderDocumentRequirements(IConfiguration configuration)
     {
         var connectionString = configuration["StorageConnection"];
         if (string.IsNullOrWhiteSpace(connectionString))
-        {
             throw new InvalidOperationException("StorageConnection configuration is missing.");
-        }
-
         _table = new TableClient(connectionString, TableName);
     }
 
+    // Category names come from the existing WordPress stall-type list.
+    // Do not keep a second hard-coded allow-list here: WordPress calls GET
+    // for each category, which creates its Azure row with defaults if missing.
+    // Retained for error-response compatibility with older API clients only.
+    // This list is not used to validate categories; WordPress remains the master list.
+    public static IReadOnlyList<string> Categories => new[]
+    {
+        "Fudge / Sweets", "Clothing / Fashion", "Jewellery / Accessories", "Arts & Crafts",
+        "Toys / Children", "Home / Gifts", "Business / Services", "Charity",
+        "Entertainment / Activities", "Food / Drink", "Other"
+    };
+
+    private static readonly HashSet<string> FoodHygieneRequiredPitchTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Fudge / Sweets",
+        "Food / Drink"
+    };
+
     public static bool IsKnownCategory(string? pitchType) =>
-        !string.IsNullOrWhiteSpace(pitchType) &&
-        CategoryNames.Contains(pitchType.Trim(), StringComparer.OrdinalIgnoreCase);
+        !string.IsNullOrWhiteSpace(pitchType) && pitchType.Trim().Length <= 120;
 
     public async Task<TraderDocumentRequirement> GetAsync(string pitchType)
     {
-        var normalized = NormalizeCategory(pitchType);
+        var normalizedPitchType = NormalizeCategory(pitchType);
         await EnsureTableAsync();
-        var rowKey = ToRowKey(normalized);
-
+        var rowKey = ToRowKey(normalizedPitchType);
         var existing = await _table.GetEntityIfExistsAsync<TableEntity>(Partition, rowKey);
-        if (existing.HasValue)
-        {
-            return FromEntity(existing.Value);
-        }
+        if (existing.HasValue) return FromEntity(existing.Value);
 
-        var defaults = DefaultFor(normalized);
-        var entity = ToEntity(normalized, defaults);
-        try
-        {
-            await _table.AddEntityAsync(entity);
-        }
-        catch (RequestFailedException ex) when (ex.Status == 409)
-        {
-            // Another request may have inserted this default at the same time.
-        }
-
+        var defaults = DefaultFor(normalizedPitchType);
+        try { await _table.AddEntityAsync(ToEntity(normalizedPitchType, defaults)); }
+        catch (RequestFailedException ex) when (ex.Status == 409) { }
         var saved = await _table.GetEntityAsync<TableEntity>(Partition, rowKey);
         return FromEntity(saved.Value);
     }
 
     public async Task<TraderDocumentRequirement> SaveAsync(
-        string pitchType,
-        bool riskAssessment,
-        bool publicLiabilityInsurance,
-        bool foodHandlingCertificate)
+        string pitchType, bool riskAssessment, bool publicLiabilityInsurance, bool foodHandlingCertificate)
     {
         var normalized = NormalizeCategory(pitchType);
         await EnsureTableAsync();
-
-        var requirements = new TraderDocumentRequirement(
-            riskAssessment,
-            publicLiabilityInsurance,
-            foodHandlingCertificate);
-
-        await _table.UpsertEntityAsync(ToEntity(normalized, requirements), TableUpdateMode.Replace);
-        return requirements;
+        var rules = new TraderDocumentRequirement(riskAssessment, publicLiabilityInsurance, foodHandlingCertificate);
+        await _table.UpsertEntityAsync(ToEntity(normalized, rules), TableUpdateMode.Replace);
+        return rules;
     }
 
-    private async Task EnsureTableAsync()
-    {
-        await _table.CreateIfNotExistsAsync();
-    }
+    private async Task EnsureTableAsync() => await _table.CreateIfNotExistsAsync();
 
     private static string NormalizeCategory(string pitchType)
     {
         var normalized = pitchType.Trim();
-        var match = CategoryNames.FirstOrDefault(
-            x => string.Equals(x, normalized, StringComparison.OrdinalIgnoreCase));
-
-        if (match is null)
-        {
-            throw new ArgumentException("Unknown stall category.", nameof(pitchType));
-        }
-
-        return match;
+        if (string.IsNullOrWhiteSpace(normalized) || normalized.Length > 120)
+            throw new ArgumentException("A valid stall category is required.", nameof(pitchType));
+        return normalized;
     }
 
     private static TraderDocumentRequirement DefaultFor(string pitchType) => new(
         RiskAssessment: true,
         PublicLiabilityInsurance: true,
-        FoodHandlingCertificate:
-            string.Equals(pitchType, "Fudge / Sweets", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(pitchType, "Food / Drink", StringComparison.OrdinalIgnoreCase));
+        FoodHandlingCertificate: FoodHygieneRequiredPitchTypes.Contains(pitchType));
 
     private static string ToRowKey(string pitchType) =>
         Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(pitchType))
-            .TrimEnd('=')
-            .Replace('+', '-')
-            .Replace('/', '_');
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
-    private static TableEntity ToEntity(string pitchType, TraderDocumentRequirement requirements)
+    private static TableEntity ToEntity(string pitchType, TraderDocumentRequirement rules) => new(Partition, ToRowKey(pitchType))
     {
-        var entity = new TableEntity(Partition, ToRowKey(pitchType))
-        {
-            ["PitchType"] = pitchType,
-            ["RiskAssessment"] = requirements.RiskAssessment,
-            ["PublicLiabilityInsurance"] = requirements.PublicLiabilityInsurance,
-            ["FoodHandlingCertificate"] = requirements.FoodHandlingCertificate,
-            ["UpdatedUtc"] = DateTimeOffset.UtcNow
-        };
-        return entity;
-    }
+        ["PitchType"] = pitchType,
+        ["RiskAssessment"] = rules.RiskAssessment,
+        ["PublicLiabilityInsurance"] = rules.PublicLiabilityInsurance,
+        ["FoodHandlingCertificate"] = rules.FoodHandlingCertificate,
+        ["UpdatedUtc"] = DateTimeOffset.UtcNow
+    };
 
     private static TraderDocumentRequirement FromEntity(TableEntity entity) => new(
-        entity.GetBoolean("RiskAssessment") ?? false,
-        entity.GetBoolean("PublicLiabilityInsurance") ?? false,
+        entity.GetBoolean("RiskAssessment") ?? true,
+        entity.GetBoolean("PublicLiabilityInsurance") ?? true,
         entity.GetBoolean("FoodHandlingCertificate") ?? false);
 }
 

@@ -5,7 +5,8 @@ using Microsoft.Azure.Functions.Worker.Http;
 
 namespace GateKeeper.Api.Functions;
 
-/// <summary>Reads the central, Azure Table Storage-backed document rules.</summary>
+/// <summary>Reads rules from Azure. Any category supplied by the WordPress master list
+/// is created in Azure with defaults on first read.</summary>
 public class GetTraderDocumentRequirementsFunction(TraderDocumentRequirements requirements)
 {
     [Function("GetTraderDocumentRequirements")]
@@ -15,16 +16,10 @@ public class GetTraderDocumentRequirementsFunction(TraderDocumentRequirements re
     {
         var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
         var pitchType = query["pitchType"]?.Trim() ?? string.Empty;
-
         if (!TraderDocumentRequirements.IsKnownCategory(pitchType))
         {
             var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-            await badRequest.WriteAsJsonAsync(new
-            {
-                success = false,
-                error = "Unknown stall category.",
-                categories = TraderDocumentRequirements.Categories
-            });
+            await badRequest.WriteAsJsonAsync(new { success = false, error = "A valid stall category is required." });
             return badRequest;
         }
 
