@@ -5,24 +5,18 @@ using Microsoft.Azure.Functions.Worker.Http;
 
 namespace GateKeeper.Api.Functions;
 
-/// <summary>
-/// Exposes the central document rules so connected WordPress pages and
-/// reminder workflows can use the same requirements as the API.
-/// </summary>
-public class GetTraderDocumentRequirementsFunction
+/// <summary>Reads the central, Azure Table Storage-backed document rules.</summary>
+public class GetTraderDocumentRequirementsFunction(TraderDocumentRequirements requirements)
 {
     [Function("GetTraderDocumentRequirements")]
     public async Task<HttpResponseData> Run(
-        [HttpTrigger(
-            AuthorizationLevel.Anonymous,
-            "get",
-            Route = "traderdocuments/requirements")]
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "traderdocuments/requirements")]
         HttpRequestData req)
     {
         var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
-        var decodedPitchType = query["pitchType"]?.Trim() ?? string.Empty;
+        var pitchType = query["pitchType"]?.Trim() ?? string.Empty;
 
-        if (!TraderDocumentRequirements.IsKnownCategory(decodedPitchType))
+        if (!TraderDocumentRequirements.IsKnownCategory(pitchType))
         {
             var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
             await badRequest.WriteAsJsonAsync(new
@@ -34,19 +28,19 @@ public class GetTraderDocumentRequirementsFunction
             return badRequest;
         }
 
-        var requirements = TraderDocumentRequirements.Get(decodedPitchType);
+        var saved = await requirements.GetAsync(pitchType);
         var response = req.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(new
         {
             success = true,
-            pitchType = decodedPitchType,
+            pitchType,
             requiredDocuments = new
             {
-                riskAssessment = requirements.RiskAssessment,
-                publicLiabilityInsurance = requirements.PublicLiabilityInsurance,
-                foodHandlingCertificate = requirements.FoodHandlingCertificate
+                riskAssessment = saved.RiskAssessment,
+                publicLiabilityInsurance = saved.PublicLiabilityInsurance,
+                foodHandlingCertificate = saved.FoodHandlingCertificate
             },
-            requiredDocumentKeys = requirements.RequiredDocumentKeys
+            requiredDocumentKeys = saved.RequiredDocumentKeys
         });
         return response;
     }

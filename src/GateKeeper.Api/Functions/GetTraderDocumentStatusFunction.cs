@@ -8,12 +8,16 @@ namespace GateKeeper.Api.Functions;
 
 public class GetTraderDocumentStatusFunction
 {
-    private readonly ITraderRepository _traders;
+  private readonly ITraderRepository _traders;
+private readonly TraderDocumentRequirements _documentRequirements;
 
-    public GetTraderDocumentStatusFunction(ITraderRepository traders)
-    {
-        _traders = traders;
-    }
+public GetTraderDocumentStatusFunction(
+    ITraderRepository traders,
+    TraderDocumentRequirements documentRequirements)
+{
+    _traders = traders;
+    _documentRequirements = documentRequirements;
+}
 
     [Function("GetTraderDocumentStatus")]
     public async Task<HttpResponseData> Run(
@@ -77,7 +81,7 @@ public class GetTraderDocumentStatusFunction
                 );
             }
 
-            var requirements = TraderDocumentRequirements.Get(trader.PitchType);
+            var requirements = await _documentRequirements.GetAsync(trader.PitchType);
 
             var documents = new
             {
