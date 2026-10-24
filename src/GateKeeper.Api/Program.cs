@@ -36,8 +36,6 @@ builder.Services.AddSingleton(walletSettings);
 
 builder.Services.AddHttpClient("wallet");
 
-builder.Services.AddSingleton<
-    GateKeeper.Api.Wallet.AppleWalletService>();
 
 builder.Services.AddSingleton<
     GateKeeper.Api.Wallet.GoogleWalletService>();
@@ -66,6 +64,8 @@ builder.Services.AddSingleton<
 // =====================================
 // TRADER SYSTEM
 // =====================================
+
+builder.Services.AddSingleton<GateKeeper.Api.Services.TraderDocumentRequirements>();
 
 builder.Services.AddSingleton<
     ITraderRepository,

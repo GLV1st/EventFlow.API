@@ -1,4 +1,5 @@
 using System.Net;
+using GateKeeper.Api.Services;
 using GateKeeper.Storage.Interfaces;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -7,12 +8,16 @@ namespace GateKeeper.Api.Functions;
 
 public class GetTraderDocumentStatusFunction
 {
-    private readonly ITraderRepository _traders;
+  private readonly ITraderRepository _traders;
+private readonly TraderDocumentRequirements _documentRequirements;
 
-    public GetTraderDocumentStatusFunction(ITraderRepository traders)
-    {
-        _traders = traders;
-    }
+public GetTraderDocumentStatusFunction(
+    ITraderRepository traders,
+    TraderDocumentRequirements documentRequirements)
+{
+    _traders = traders;
+    _documentRequirements = documentRequirements;
+}
 
     [Function("GetTraderDocumentStatus")]
     public async Task<HttpResponseData> Run(
@@ -76,44 +81,42 @@ public class GetTraderDocumentStatusFunction
                 );
             }
 
-            var response =
-                req.CreateResponse(
-                    HttpStatusCode.OK
-                );
+            var requirements = await _documentRequirements.GetAsync(trader.PitchType);
 
-            await response.WriteAsJsonAsync(
-                new
+            var documents = new
+            {
+                riskAssessment = !string.IsNullOrWhiteSpace(trader.RiskAssessment),
+                publicLiabilityInsurance = !string.IsNullOrWhiteSpace(trader.PublicLiabilityInsurance),
+                foodHandlingCertificate = !string.IsNullOrWhiteSpace(trader.FoodHandlingCertificate)
+            };
+
+            var missingRequiredDocuments = new List<string>();
+            if (requirements.RiskAssessment && !documents.riskAssessment)
+                missingRequiredDocuments.Add("riskAssessment");
+            if (requirements.PublicLiabilityInsurance && !documents.publicLiabilityInsurance)
+                missingRequiredDocuments.Add("publicLiabilityInsurance");
+            if (requirements.FoodHandlingCertificate && !documents.foodHandlingCertificate)
+                missingRequiredDocuments.Add("foodHandlingCertificate");
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                eventId = trader.EventId,
+                traderPassNumber = trader.TraderPassNumber,
+                companyName = trader.CompanyName,
+                pitchType = trader.PitchType,
+                requiredDocuments = new
                 {
-                    success = true,
-
-                    eventId =
-                        trader.EventId,
-
-                    traderPassNumber =
-                        trader.TraderPassNumber,
-
-                    companyName =
-                        trader.CompanyName,
-
-                    documents = new
-                    {
-                        riskAssessment =
-                            !string.IsNullOrWhiteSpace(
-                                trader.RiskAssessment
-                            ),
-
-                        publicLiabilityInsurance =
-                            !string.IsNullOrWhiteSpace(
-                                trader.PublicLiabilityInsurance
-                            ),
-
-                        foodHandlingCertificate =
-                            !string.IsNullOrWhiteSpace(
-                                trader.FoodHandlingCertificate
-                            )
-                    }
-                }
-            );
+                    riskAssessment = requirements.RiskAssessment,
+                    publicLiabilityInsurance = requirements.PublicLiabilityInsurance,
+                    foodHandlingCertificate = requirements.FoodHandlingCertificate
+                },
+                documents,
+                missingRequiredDocuments,
+                allRequiredDocumentsUploaded = missingRequiredDocuments.Count == 0
+            });
 
             return response;
         }

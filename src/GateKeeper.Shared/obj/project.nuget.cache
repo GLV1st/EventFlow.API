@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "jOLLlAqUF0k=",
+  "dgSpecHash": "21NggS1m11k=",
   "success": true,
-  "projectFilePath": "D:\\Azure Ticketing App\\api\\src\\GateKeeper.Shared\\GateKeeper.Shared.csproj",
+  "projectFilePath": "D:\\Azure Apps\\GateKeeper\\api\\src\\GateKeeper.Shared\\GateKeeper.Shared.csproj",
   "expectedPackageFiles": [],
   "logs": []
 }

@@ -1,3 +1,4 @@
+using GateKeeper.Api.Services;
 using GateKeeper.Storage.Entities;
 using GateKeeper.Storage.Interfaces;
 using Microsoft.Azure.Functions.Worker;
@@ -64,6 +65,17 @@ public class TraderCreateFunction
                 await response.WriteStringAsync(
                     "EventId is required.");
 
+                return response;
+            }
+
+            if (!TraderDocumentRequirements.IsKnownCategory(trader.PitchType))
+            {
+                var response = req.CreateResponse(HttpStatusCode.BadRequest);
+                await response.WriteAsJsonAsync(new
+                {
+                    error = "A valid PitchType stall category is required.",
+                    categories = TraderDocumentRequirements.Categories
+                });
                 return response;
             }
 

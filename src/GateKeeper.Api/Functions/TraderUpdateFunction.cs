@@ -1,3 +1,4 @@
+using GateKeeper.Api.Services;
 using GateKeeper.Storage.Interfaces;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -47,6 +48,19 @@ public class TraderUpdateFunction
             }
 
             // Only booking details are editable from TraderDashboard.
+            // Keep stall categories aligned with the central document rules.
+            if (!string.IsNullOrWhiteSpace(incoming.PitchType) &&
+                !TraderDocumentRequirements.IsKnownCategory(incoming.PitchType))
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new
+                {
+                    error = "Unknown stall category.",
+                    categories = TraderDocumentRequirements.Categories
+                });
+                return badRequest;
+            }
+
             existing.CompanyName = incoming.CompanyName?.Trim() ?? "";
             existing.ContactName = incoming.ContactName?.Trim() ?? "";
             existing.CustomerEmail = incoming.CustomerEmail?.Trim() ?? "";
@@ -54,7 +68,8 @@ public class TraderUpdateFunction
             existing.VehicleRegistration = incoming.VehicleRegistration?.Trim() ?? "";
             existing.StallDescription = incoming.StallDescription?.Trim() ?? "";
             existing.CharityNumber = incoming.CharityNumber?.Trim() ?? "";
-            existing.PitchType = incoming.PitchType?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(incoming.PitchType))
+                existing.PitchType = incoming.PitchType.Trim();
             existing.PitchSize = incoming.PitchSize?.Trim() ?? "";
             existing.NumberOfPeople = Math.Max(0, incoming.NumberOfPeople);
             existing.Updated = DateTime.UtcNow;
