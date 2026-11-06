@@ -1,4 +1,4 @@
-# GateKeeper Apple Wallet + Google Wallet setup
+# EventFlow Apple Wallet + Google Wallet setup
 
 ## Apple Wallet
 

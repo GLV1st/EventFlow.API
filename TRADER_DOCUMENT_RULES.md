@@ -1,6 +1,6 @@
 # Trader document requirements
 
-The central rules are implemented in `src/GateKeeper.Api/Services/TraderDocumentRequirements.cs`.
+The central rules are implemented in `src/EventFlow.Api/Services/TraderDocumentRequirements.cs`.
 
 | Stall category | Risk Assessment | Public Liability | Food Hygiene |
 |---|---|---|---|
