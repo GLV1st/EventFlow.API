@@ -44,6 +44,6 @@ jobs:
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
         with:
-          app-name: 'EventFlowAPI'
+          app-name: 'EeventFlowAPI'
           slot-name: 'Production'
           package: './publish'
