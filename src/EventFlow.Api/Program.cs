@@ -1,14 +1,16 @@
+
 using Azure.Monitor.OpenTelemetry.Exporter;
+using EventFlow.Api.Security;
 using EventFlow.Core.Interfaces;
 using EventFlow.Core.Services;
+using EventFlow.Storage.Interfaces;
+using EventFlow.Storage.Repositories;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Azure.Functions.Worker.OpenTelemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenTelemetry;
-using EventFlow.Storage.Interfaces;
-using EventFlow.Storage.Repositories;
-using Microsoft.AspNetCore.Http.Json;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
@@ -24,30 +26,17 @@ if (!string.IsNullOrEmpty(
         .UseAzureMonitorExporter();
 }
 
-
 // =====================================
-// WALLET SERVICES
-// =====================================
-
-var walletSettings =
-    EventFlow.Api.Wallet.WalletSettings.FromEnvironment();
-
-builder.Services.AddSingleton(walletSettings);
-
-builder.Services.AddHttpClient("wallet");
-
-
-builder.Services.AddSingleton<
-    EventFlow.Api.Wallet.GoogleWalletService>();
-
-
-// =====================================
-// DEPENDENCY INJECTION
+// CORE SERVICES
 // =====================================
 
 builder.Services.AddSingleton<
     IHealthService,
     HealthService>();
+
+// =====================================
+// STORAGE REPOSITORIES
+// =====================================
 
 builder.Services.AddSingleton<
     IEventRepository,
@@ -56,32 +45,22 @@ builder.Services.AddSingleton<
 builder.Services.AddSingleton<
     ITicketRepository,
     TicketRepository>();
+
 builder.Services.AddSingleton<
     ITicketScanLogRepository,
     TicketScanLogRepository>();
 
-
-// =====================================
-// TRADER SYSTEM
-// =====================================
-
-builder.Services.AddSingleton<EventFlow.Api.Services.TraderDocumentRequirements>();
-
 builder.Services.AddSingleton<
-    ITraderRepository,
-    TraderRepository>();
-builder.Services.AddSingleton<
-    ITraderPitchRepository,
-    TraderPitchRepository>();
+    ITenantRegistryRepository,
+    TenantRegistryRepository>();
 
 // =====================================
-// CATERING VENDOR SYSTEM
+// TENANT SECURITY
 // =====================================
 
 builder.Services.AddSingleton<
-    ICateringVendorRepository,
-    CateringVendorRepository>();
-
+    ITenantSecurityService,
+    TenantSecurityService>();
 
 // =====================================
 // JSON
@@ -92,6 +71,5 @@ builder.Services.Configure<JsonOptions>(options =>
     options.SerializerOptions.PropertyNamingPolicy =
         System.Text.Json.JsonNamingPolicy.CamelCase;
 });
-
 
 builder.Build().Run();

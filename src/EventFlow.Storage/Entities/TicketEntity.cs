@@ -1,3 +1,4 @@
+
 using Azure;
 using Azure.Data.Tables;
 
@@ -6,32 +7,40 @@ namespace EventFlow.Storage.Entities;
 public class TicketEntity : ITableEntity
 {
     // =====================================
+    // TENANT / EVENT IDENTITY
+    // =====================================
+
+    public string TenantId { get; set; } = "";
+
+    public string EventId { get; set; } = "";
+
+    // =====================================
     // AZURE TABLE KEYS
     // =====================================
 
     public string PartitionKey { get; set; } = "";
+
     public string RowKey { get; set; } = "";
 
-
     // =====================================
-    // WOOCOMMERCE / EVENT
+    // WOOCOMMERCE
     // =====================================
 
     public string OrderId { get; set; } = "";
-    public string TicketType { get; set; } = "";
-    public string EventDate { get; set; } = "";
 
+    public string OrderItemId { get; set; } = "";
+
+    public string TicketType { get; set; } = "";
+
+    public string EventDate { get; set; } = "";
 
     // =====================================
     // CUSTOMER
     // =====================================
 
     public string CustomerName { get; set; } = "";
+
     public string CustomerEmail { get; set; } = "";
-
-    // Secret token used to authorise public Wallet links.
-    public string WalletToken { get; set; } = "";
-
 
     // =====================================
     // TICKET STATUS
@@ -47,19 +56,12 @@ public class TicketEntity : ITableEntity
 
     public bool Cancelled { get; set; } = false;
 
-
     // =====================================
     // FIRST SCAN / ATTENDANCE
     // =====================================
 
-    // Permanent record of the first successful
-    // entry scan for this ticket.
-    //
-    // This is NOT changed when the person leaves
-    // and comes back in.
-
+    // Permanent record of the first successful entry scan.
     public DateTime? FirstScanAt { get; set; }
-
 
     // =====================================
     // AUDIT
@@ -68,7 +70,6 @@ public class TicketEntity : ITableEntity
     public DateTime Created { get; set; } = DateTime.UtcNow;
 
     public DateTime Updated { get; set; } = DateTime.UtcNow;
-
 
     // =====================================
     // AZURE

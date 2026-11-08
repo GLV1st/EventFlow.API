@@ -1,3 +1,5 @@
+
+using EventFlow.Api.Security;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using System.Net;
@@ -6,102 +8,51 @@ namespace EventFlow.Api.Functions;
 
 public class AdminAuthFunction
 {
-    [Function("AdminAuth")]
+    private readonly ITenantSecurityService _security;
+
+    public AdminAuthFunction(ITenantSecurityService security)
+    {
+        _security = security;
+    }
+
+    [Function("GenerateRegistrationCode")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
-            AuthorizationLevel.Anonymous,
+            AuthorizationLevel.Function,
             "post",
-            Route = "event-auth"
-        )]
-        HttpRequestData req)
+            Route = "event-auth")] HttpRequestData req)
     {
-        var request =
-            await req.ReadFromJsonAsync<AdminAuthRequest>();
-
-        if (request == null ||
-            string.IsNullOrWhiteSpace(request.Password))
+        try
         {
-            return await CreateResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                false,
-                "Password is required."
-            );
-        }
+            var result =
+                await _security.GenerateRegistrationCodeAsync();
 
+            var response = req.CreateResponse(HttpStatusCode.OK);
 
-        // ============================================
-        // ADMIN PASSWORD FROM AZURE
-        // ============================================
-
-        var configuredPassword =
-            Environment.GetEnvironmentVariable(
-                "EventFlow_ADMIN_PASSWORD"
-            );
-
-
-        if (string.IsNullOrWhiteSpace(configuredPassword))
-        {
-            return await CreateResponse(
-                req,
-                HttpStatusCode.InternalServerError,
-                false,
-                "EventFlow_ADMIN_PASSWORD is not configured."
-            );
-        }
-
-
-        // ============================================
-        // CHECK PASSWORD
-        // ============================================
-
-        if (request.Password != configuredPassword)
-        {
-            return await CreateResponse(
-                req,
-                HttpStatusCode.Unauthorized,
-                false,
-                "Incorrect admin password."
-            );
-        }
-
-
-        // ============================================
-        // SUCCESS
-        // ============================================
-
-        return await CreateResponse(
-            req,
-            HttpStatusCode.OK,
-            true,
-            "Admin access granted."
-        );
-    }
-
-
-    private static async Task<HttpResponseData> CreateResponse(
-        HttpRequestData req,
-        HttpStatusCode status,
-        bool authenticated,
-        string message)
-    {
-        var response =
-            req.CreateResponse(status);
-
-        await response.WriteAsJsonAsync(
-            new
+            await response.WriteAsJsonAsync(new
             {
-                Authenticated = authenticated,
-                Message = message
-            }
-        );
+                Success = true,
+                result.Code,
+                result.ExpiresAt,
+                Message = "Registration code generated successfully."
+            });
 
-        return response;
+            return response;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Registration code generation failed: {ex}");
+
+            var response =
+                req.CreateResponse(HttpStatusCode.InternalServerError);
+
+            await response.WriteAsJsonAsync(new
+            {
+                Success = false,
+                Message = "Registration code could not be generated."
+            });
+
+            return response;
+        }
     }
-}
-
-
-public class AdminAuthRequest
-{
-    public string? Password { get; set; }
 }

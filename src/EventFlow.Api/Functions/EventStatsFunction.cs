@@ -1,3 +1,5 @@
+
+using EventFlow.Api.Security;
 using EventFlow.Storage.Interfaces;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -8,17 +10,14 @@ namespace EventFlow.Api.Functions;
 public class EventStatsFunction
 {
     private readonly ITicketRepository _tickets;
-    private readonly ITraderRepository _traders;
-    private readonly ICateringVendorRepository _cateringVendors;
+    private readonly ITenantSecurityService _tenantSecurity;
 
     public EventStatsFunction(
         ITicketRepository tickets,
-        ITraderRepository traders,
-        ICateringVendorRepository cateringVendors)
+        ITenantSecurityService tenantSecurity)
     {
         _tickets = tickets;
-        _traders = traders;
-        _cateringVendors = cateringVendors;
+        _tenantSecurity = tenantSecurity;
     }
 
     [Function("EventStats")]
@@ -26,282 +25,117 @@ public class EventStatsFunction
         [HttpTrigger(
             AuthorizationLevel.Anonymous,
             "get",
-            Route = "events/{eventId}/stats"
-        )]
+            Route = "events/{eventId}/stats")]
         HttpRequestData req,
         string eventId)
     {
-        // =====================================
-        // VALIDATE EVENT
-        // =====================================
-
         if (string.IsNullOrWhiteSpace(eventId))
         {
-            return req.CreateResponse(
-                HttpStatusCode.BadRequest
-            );
+            return req.CreateResponse(HttpStatusCode.BadRequest);
         }
 
-        // =====================================
-        // GET NORMAL TICKETS
-        // =====================================
+        // Validate bearer token.
+        if (!req.Headers.TryGetValues("Authorization", out var values))
+        {
+            return req.CreateResponse(HttpStatusCode.Unauthorized);
+        }
 
-        var tickets =
-            await _tickets.GetTicketsByEventAsync(
-                eventId
-            );
+        var authHeader = values.FirstOrDefault();
 
-        // =====================================
-        // GET TRADER PASSES
-        // =====================================
+        if (string.IsNullOrWhiteSpace(authHeader) ||
+            !authHeader.StartsWith(
+                "Bearer ",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return req.CreateResponse(HttpStatusCode.Unauthorized);
+        }
 
-        var traders =
-            await _traders.GetTradersByEventAsync(
-                eventId
-            );
+        var accessToken = authHeader["Bearer ".Length..].Trim();
 
-        // =====================================
-        // GET CATERING PASSES
-        // =====================================
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            return req.CreateResponse(HttpStatusCode.Unauthorized);
+        }
 
-        var cateringVendors =
-            await _cateringVendors.GetCateringVendorsByEventAsync(
-                eventId
-            );
+        var tenantId =
+            await _tenantSecurity.ValidateAccessTokenAsync(accessToken);
 
-        // =====================================
-        // NORMAL TICKET STATISTICS
-        // =====================================
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return req.CreateResponse(HttpStatusCode.Unauthorized);
+        }
 
-        // A normal ticket is counted as SOLD when:
-        // 1. It is linked to a WooCommerce order, OR
-        // 2. It is a manually generated/physical ticket and has been
-        //    successfully scanned for the first time.
-        //
-        // Manually generated tickets have no OrderId and FirstScanAt
-        // remains null until their first successful entry scan.
-        var normalTickets =
-            tickets.Count(t =>
-                !string.IsNullOrWhiteSpace(t.OrderId) ||
-                t.FirstScanAt != null
-            );
+        // Retrieve tickets belonging only to this tenant and event.
+        var tickets = await _tickets.GetTicketsByEventAsync(
+            tenantId,
+            eventId);
 
-        var normalCheckedIn =
-            tickets.Count(t =>
-                t.CheckedIn &&
-                !t.Cancelled
-            );
+        var normalTickets = tickets.Count(t =>
+            !string.IsNullOrWhiteSpace(t.OrderId) ||
+            t.FirstScanAt != null);
 
-        var normalCheckedOut =
-            tickets.Count(t =>
-                t.CheckedOut &&
-                !t.Cancelled
-            );
+        var checkedIn = tickets.Count(t =>
+            t.CheckedIn && !t.Cancelled);
 
-        var normalOnSite =
-            tickets.Count(t =>
-                t.CheckedIn &&
-                !t.CheckedOut &&
-                !t.Cancelled
-            );
+        var checkedOut = tickets.Count(t =>
+            t.CheckedOut && !t.Cancelled);
 
-        var normalNotYetIn =
-            tickets.Count(t =>
-                !t.CheckedIn &&
-                !t.CheckedOut &&
-                !t.Cancelled
-            );
+        var onSite = tickets.Count(t =>
+            t.CheckedIn &&
+            !t.CheckedOut &&
+            !t.Cancelled);
 
-        var cancelled =
-            tickets.Count(t =>
-                t.Cancelled
-            );
+        var notYetIn = tickets.Count(t =>
+            !t.CheckedIn &&
+            !t.CheckedOut &&
+            !t.Cancelled);
 
-        // =====================================
-        // NORMAL TICKET TYPE BREAKDOWN
-        // =====================================
+        var cancelled = tickets.Count(t => t.Cancelled);
 
-        var onSiteUnder14 =
-            tickets.Count(t =>
-                t.CheckedIn &&
-                !t.CheckedOut &&
-                !t.Cancelled &&
-                string.Equals(
-                    t.TicketType?.Trim(),
-                    "Under 14 Yrs",
-                    StringComparison.OrdinalIgnoreCase
-                )
-            );
+        var onSiteUnder14 = tickets.Count(t =>
+            t.CheckedIn &&
+            !t.CheckedOut &&
+            !t.Cancelled &&
+            string.Equals(
+                t.TicketType?.Trim(),
+                "Under 14 Yrs",
+                StringComparison.OrdinalIgnoreCase));
 
-        var onSiteOver14 =
-            tickets.Count(t =>
-                t.CheckedIn &&
-                !t.CheckedOut &&
-                !t.Cancelled &&
-                string.Equals(
-                    t.TicketType?.Trim(),
-                    "Over 14 Yrs",
-                    StringComparison.OrdinalIgnoreCase
-                )
-            );
+        var onSiteOver14 = tickets.Count(t =>
+            t.CheckedIn &&
+            !t.CheckedOut &&
+            !t.Cancelled &&
+            string.Equals(
+                t.TicketType?.Trim(),
+                "Over 14 Yrs",
+                StringComparison.OrdinalIgnoreCase));
 
-        // =====================================
-        // TRADER STATISTICS
-        // =====================================
+        var response = req.CreateResponse(HttpStatusCode.OK);
 
-        var traderPasses =
-            traders.Count;
+        await response.WriteAsJsonAsync(new
+        {
+            EventId = eventId,
 
-        var traderPeopleExpected =
-            traders.Sum(t =>
-                Math.Max(0, t.NumberOfPeople)
-            );
+            Total = normalTickets,
+            NormalTickets = normalTickets,
+            TraderPasses = 0,
 
-        var traderPeopleCheckedIn =
-            traders.Sum(t =>
-                Math.Max(0, t.PeopleOnSite)
-            );
+            PeopleExpected = normalTickets,
+            PeopleCheckedIn = checkedIn,
+            PeopleCheckedOut = checkedOut,
+            PeopleOnSite = onSite,
+            PeopleNotYetIn = notYetIn,
 
-        var traderPeopleCheckedOut =
-            traders.Sum(t =>
-                Math.Max(0, t.NumberOfPeople - t.PeopleOnSite)
-            );
+            CheckedIn = checkedIn,
+            CheckedOut = checkedOut,
+            OnSite = onSite,
 
-        var traderPeopleNotYetIn =
-            traders.Sum(t =>
-                Math.Max(0, t.NumberOfPeople - t.PeopleOnSite)
-            );
+            OnSiteUnder14 = onSiteUnder14,
+            OnSiteOver14 = onSiteOver14,
 
-        // =====================================
-        // CATERING STATISTICS
-        // =====================================
-
-        var cateringPasses =
-            cateringVendors.Count;
-
-        var cateringPeopleExpected =
-            cateringVendors.Sum(v =>
-                Math.Max(0, v.NumberOfPeople)
-            );
-
-        var cateringPeopleCheckedIn =
-            cateringVendors.Sum(v =>
-                Math.Max(0, v.PeopleOnSite)
-            );
-
-        var cateringPeopleCheckedOut =
-            cateringVendors.Sum(v =>
-                Math.Max(0, v.NumberOfPeople - v.PeopleOnSite)
-            );
-
-        var cateringPeopleNotYetIn =
-            cateringVendors.Sum(v =>
-                Math.Max(0, v.NumberOfPeople - v.PeopleOnSite)
-            );
-
-        // =====================================
-        // COMBINED PASS / TICKET TOTALS
-        // =====================================
-
-        // One trader or catering pass counts as ONE pass,
-        // regardless of how many people are attending.
-        var total =
-            normalTickets +
-            traderPasses +
-            cateringPasses;
-
-        var combinedTraderPasses =
-            traderPasses +
-            cateringPasses;
-
-        // People expected is the normal ticket count
-        // plus the people covered by trader and catering passes.
-        var peopleExpected =
-            normalTickets +
-            traderPeopleExpected +
-            cateringPeopleExpected;
-
-        // People currently checked in/on site.
-        var peopleCheckedIn =
-            normalCheckedIn +
-            traderPeopleCheckedIn +
-            cateringPeopleCheckedIn;
-
-        // People who have checked out.
-        var peopleCheckedOut =
-            normalCheckedOut +
-            traderPeopleCheckedOut +
-            cateringPeopleCheckedOut;
-
-        // People physically on site.
-        var peopleOnSite =
-            normalOnSite +
-            traderPeopleCheckedIn +
-            cateringPeopleCheckedIn;
-
-        // People who have not arrived yet.
-        var peopleNotYetIn =
-            normalNotYetIn +
-            traderPeopleNotYetIn +
-            cateringPeopleNotYetIn;
-
-        // =====================================
-        // RESPONSE
-        // =====================================
-
-        var response =
-            req.CreateResponse(
-                HttpStatusCode.OK
-            );
-
-        await response.WriteAsJsonAsync(
-            new
-            {
-                EventId = eventId,
-
-                // -----------------------------
-                // PASS / TICKET COUNTS
-                // -----------------------------
-
-                Total = total,
-
-                NormalTickets = normalTickets,
-
-                TraderPasses = combinedTraderPasses,
-
-                // -----------------------------
-                // PEOPLE COUNTS
-                // -----------------------------
-
-                PeopleExpected = peopleExpected,
-
-                PeopleCheckedIn = peopleCheckedIn,
-
-                PeopleCheckedOut = peopleCheckedOut,
-
-                PeopleOnSite = peopleOnSite,
-
-                PeopleNotYetIn = peopleNotYetIn,
-
-                // -----------------------------
-                // EXISTING STATS
-                // -----------------------------
-
-                CheckedIn = peopleCheckedIn,
-
-                CheckedOut = peopleCheckedOut,
-
-                OnSite = peopleOnSite,
-
-                OnSiteUnder14 = onSiteUnder14,
-
-                OnSiteOver14 = onSiteOver14,
-
-                NotYetIn = peopleNotYetIn,
-
-                Cancelled = cancelled
-            }
-        );
+            NotYetIn = notYetIn,
+            Cancelled = cancelled
+        });
 
         return response;
     }

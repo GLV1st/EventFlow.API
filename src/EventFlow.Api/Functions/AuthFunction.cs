@@ -1,3 +1,5 @@
+
+using EventFlow.Api.Security;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using System.Net;
@@ -6,146 +8,173 @@ namespace EventFlow.Api.Functions;
 
 public class AuthFunction
 {
-    [Function("Auth")]
-    public async Task<HttpResponseData> Run(
+    private readonly ITenantSecurityService _security;
+
+    public AuthFunction(ITenantSecurityService security)
+    {
+        _security = security;
+    }
+
+    // =========================================
+    // REGISTER WEBSITE
+    // =========================================
+
+    [Function("RegisterTenant")]
+    public async Task<HttpResponseData> Register(
         [HttpTrigger(
             AuthorizationLevel.Anonymous,
             "post",
-            Route = "auth"
-        )]
-        HttpRequestData req)
+            Route = "auth/register")] HttpRequestData req)
     {
-        var request =
-            await req.ReadFromJsonAsync<AuthRequest>();
-
-        if (request == null ||
-            string.IsNullOrWhiteSpace(request.Password))
+        try
         {
-            return await CreateResponse(
-                req,
-                HttpStatusCode.BadRequest,
-                false,
-                false,
-                "Password is required."
-            );
+            var request =
+                await req.ReadFromJsonAsync<TenantRegistrationRequest>();
+
+            if (request == null ||
+                string.IsNullOrWhiteSpace(request.Code) ||
+                string.IsNullOrWhiteSpace(request.SiteUrl) ||
+                string.IsNullOrWhiteSpace(request.SiteName))
+            {
+                return await Error(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Registration code, website URL and website name are required.");
+            }
+
+            var result =
+                await _security.RedeemRegistrationCodeAsync(
+                    request.Code,
+                    request.SiteUrl,
+                    request.SiteName);
+
+            if (result == null)
+            {
+                return await Error(
+                    req,
+                    HttpStatusCode.Unauthorized,
+                    "Registration code is invalid, expired or already used.");
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+
+            await response.WriteAsJsonAsync(new
+            {
+                Success = true,
+                result.TenantId,
+                result.ClientId,
+                result.ClientSecret,
+                Message = "Website successfully registered."
+            });
+
+            return response;
         }
-
-
-        // =====================================================
-        // MAIN EventFlow PASSWORD
-        // =====================================================
-
-        var configuredPassword =
-            Environment.GetEnvironmentVariable(
-                "EventFlowPassword"
-            );
-
-
-        if (string.IsNullOrWhiteSpace(configuredPassword))
+        catch (Exception ex)
         {
-            return await CreateResponse(
-                req,
-                HttpStatusCode.InternalServerError,
-                false,
-                false,
-                "EventFlowPassword is not configured."
-            );
-        }
+            Console.WriteLine($"Tenant registration failed: {ex}");
 
-
-        // =====================================================
-        // ADMIN PASSWORD
-        // =====================================================
-
-        var configuredAdminPassword =
-            Environment.GetEnvironmentVariable(
-                "EventFlow_ADMIN_PASSWORD"
-            );
-
-
-        if (string.IsNullOrWhiteSpace(configuredAdminPassword))
-        {
-            return await CreateResponse(
+            return await Error(
                 req,
                 HttpStatusCode.InternalServerError,
-                false,
-                false,
-                "EventFlow_ADMIN_PASSWORD is not configured."
-            );
+                "Registration could not be completed.");
         }
-
-
-        // =====================================================
-        // CHECK MAIN PASSWORD
-        // =====================================================
-
-        if (request.Password == configuredPassword)
-        {
-            return await CreateResponse(
-                req,
-                HttpStatusCode.OK,
-                true,
-                false,
-                "Access granted."
-            );
-        }
-
-
-        // =====================================================
-        // CHECK ADMIN PASSWORD
-        // =====================================================
-
-        if (request.Password == configuredAdminPassword)
-        {
-            return await CreateResponse(
-                req,
-                HttpStatusCode.OK,
-                true,
-                true,
-                "Admin access granted."
-            );
-        }
-
-
-        // =====================================================
-        // INVALID PASSWORD
-        // =====================================================
-
-        return await CreateResponse(
-            req,
-            HttpStatusCode.Unauthorized,
-            false,
-            false,
-            "Incorrect password."
-        );
     }
 
+    // =========================================
+    // EXCHANGE CLIENT CREDENTIALS FOR TOKEN
+    // =========================================
 
-    private static async Task<HttpResponseData> CreateResponse(
+    [Function("CreateAccessToken")]
+    public async Task<HttpResponseData> Token(
+        [HttpTrigger(
+            AuthorizationLevel.Anonymous,
+            "post",
+            Route = "auth/token")] HttpRequestData req)
+    {
+        try
+        {
+            var request =
+                await req.ReadFromJsonAsync<TokenRequest>();
+
+            if (request == null ||
+                string.IsNullOrWhiteSpace(request.ClientId) ||
+                string.IsNullOrWhiteSpace(request.ClientSecret))
+            {
+                return await Error(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Client ID and Client Secret are required.");
+            }
+
+            var result =
+                await _security.CreateAccessTokenAsync(
+                    request.ClientId,
+                    request.ClientSecret);
+
+            if (result == null)
+            {
+                return await Error(
+                    req,
+                    HttpStatusCode.Unauthorized,
+                    "Invalid client credentials.");
+            }
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+
+            await response.WriteAsJsonAsync(new
+            {
+                result.AccessToken,
+                result.TokenType,
+                result.ExpiresIn
+            });
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Token creation failed: {ex}");
+
+            return await Error(
+                req,
+                HttpStatusCode.InternalServerError,
+                "Access token could not be created.");
+        }
+    }
+
+    // =========================================
+    // ERROR RESPONSE
+    // =========================================
+
+    private static async Task<HttpResponseData> Error(
         HttpRequestData req,
         HttpStatusCode status,
-        bool authenticated,
-        bool admin,
         string message)
     {
-        var response =
-            req.CreateResponse(status);
+        var response = req.CreateResponse(status);
 
-        await response.WriteAsJsonAsync(
-            new
-            {
-                Authenticated = authenticated,
-                Admin = admin,
-                Message = message
-            }
-        );
+        await response.WriteAsJsonAsync(new
+        {
+            Success = false,
+            Message = message
+        });
 
         return response;
     }
 }
 
+// =========================================
+// REQUEST MODELS
+// =========================================
 
-public class AuthRequest
+public class TenantRegistrationRequest
 {
-    public string? Password { get; set; }
+    public string? Code { get; set; }
+    public string? SiteUrl { get; set; }
+    public string? SiteName { get; set; }
+}
+
+public class TokenRequest
+{
+    public string? ClientId { get; set; }
+    public string? ClientSecret { get; set; }
 }
