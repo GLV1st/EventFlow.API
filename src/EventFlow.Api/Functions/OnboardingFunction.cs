@@ -20,7 +20,7 @@ public class OnboardingFunction
     // Supplier-only operation. Requires the Azure Function host key.
     [Function("GenerateSupplierActivationKey")]
     public async Task<HttpResponseData> GenerateKey(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "admin/activation-keys")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "ticketpilot/admin/activation-keys")] HttpRequestData req)
     {
         var body = await req.ReadFromJsonAsync<ActivationKeyRequest>();
         var key = await _security.GenerateSupplierActivationKeyAsync(body?.Label ?? "Customer activation");
