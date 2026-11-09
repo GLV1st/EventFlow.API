@@ -14,6 +14,7 @@ public interface ITenantSecurityService
         string clientSecret);
 
     Task<string?> ValidateAccessTokenAsync(string accessToken);
+    Task<EventAccessPrincipal?> ValidateEventAccessTokenAsync(string accessToken);
     Task<string> GenerateSupplierActivationKeyAsync(string label);
     Task<WebsiteActivationResult?> ActivateWebsiteAsync(string key, string siteUrl, string siteName);
     Task<OwnerRegistrationResult?> RegisterOwnerAsync(string code, string displayName,
@@ -51,6 +52,7 @@ public record OwnerRegistrationResult(string TenantId, string SiteName, string S
 public record UserLoginResult(string TenantId, string UserId, string DisplayName,
     string Email, string Role, string AccessToken, string TokenType, int ExpiresIn);
 public record UserPrincipal(string TenantId, string UserId, string Email, string Role);
+public record EventAccessPrincipal(string TenantId, string? UserId, string Role, bool IsWebsiteClient);
 
 public record InvitationCreatedResult(string InvitationToken, string Email, string DisplayName, string Role, DateTimeOffset CreatedAt);
 public record ManagedUser(string UserId, string Email, string DisplayName, string Role, string Status, DateTimeOffset? CreatedAt);

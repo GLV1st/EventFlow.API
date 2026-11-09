@@ -52,13 +52,15 @@ public class EventsFunction
             return req.CreateResponse(HttpStatusCode.Unauthorized);
         }
 
-        var tenantId =
-            await _tenantSecurity.ValidateAccessTokenAsync(accessToken);
+        var access =
+            await _tenantSecurity.ValidateEventAccessTokenAsync(accessToken);
 
-        if (string.IsNullOrWhiteSpace(tenantId))
+        if (access == null || string.IsNullOrWhiteSpace(access.TenantId))
         {
             return req.CreateResponse(HttpStatusCode.Unauthorized);
         }
+
+        var tenantId = access.TenantId;
 
         // Retrieve events belonging only to this tenant.
         var events = await _repository.GetEventsAsync(tenantId);

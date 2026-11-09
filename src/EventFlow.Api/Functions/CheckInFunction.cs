@@ -56,13 +56,15 @@ public class CheckInFunction
             return req.CreateResponse(HttpStatusCode.Unauthorized);
         }
 
-        var tenantId =
-            await _tenantSecurity.ValidateAccessTokenAsync(accessToken);
+        var access =
+            await _tenantSecurity.ValidateEventAccessTokenAsync(accessToken);
 
-        if (string.IsNullOrWhiteSpace(tenantId))
+        if (access == null || string.IsNullOrWhiteSpace(access.TenantId))
         {
             return req.CreateResponse(HttpStatusCode.Unauthorized);
         }
+
+        var tenantId = access.TenantId;
 
         var request = await req.ReadFromJsonAsync<CheckInRequest>();
 

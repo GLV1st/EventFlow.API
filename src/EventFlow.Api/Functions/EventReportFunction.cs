@@ -63,12 +63,23 @@ public class EventReportFunction
             return req.CreateResponse(HttpStatusCode.Unauthorized);
         }
 
-        var tenantId =
-            await _tenantSecurity.ValidateAccessTokenAsync(accessToken);
+        var access =
+            await _tenantSecurity.ValidateEventAccessTokenAsync(accessToken);
 
-        if (string.IsNullOrWhiteSpace(tenantId))
+        if (access == null || string.IsNullOrWhiteSpace(access.TenantId))
         {
             return req.CreateResponse(HttpStatusCode.Unauthorized);
+        }
+
+        var tenantId = access.TenantId;
+
+        // Scanner accounts may scan tickets and view live stats, but event reports
+        // contain broader sales and attendance information and are manager-only.
+        if (!access.IsWebsiteClient &&
+            !new[] { "OWNER", "ADMINISTRATOR", "EVENT_MANAGER" }.Contains(
+                access.Role, StringComparer.OrdinalIgnoreCase))
+        {
+            return req.CreateResponse(HttpStatusCode.Forbidden);
         }
 
         // All data retrieval is scoped to the authenticated tenant.

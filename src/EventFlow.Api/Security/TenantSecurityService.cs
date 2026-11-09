@@ -221,6 +221,30 @@ public class TenantSecurityService : ITenantSecurityService
     }
 
     // =========================================
+    // EVENT API TOKEN VALIDATION
+    // Accepts both legacy WooCommerce client tokens and
+    // individual TicketPilot staff access tokens.
+    // =========================================
+
+    public async Task<EventAccessPrincipal?> ValidateEventAccessTokenAsync(string accessToken)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken))
+            return null;
+
+        // Prefer individual staff tokens so role information is retained.
+        var user = await ValidateUserAccessTokenAsync(accessToken);
+        if (user != null)
+            return new EventAccessPrincipal(user.TenantId, user.UserId, user.Role, false);
+
+        // Keep existing WooCommerce integration working during and after migration.
+        var tenantId = await ValidateAccessTokenAsync(accessToken);
+        if (!string.IsNullOrWhiteSpace(tenantId))
+            return new EventAccessPrincipal(tenantId, null, "WEBSITE", true);
+
+        return null;
+    }
+
+    // =========================================
     // SECURITY HELPERS
     // =========================================
 
