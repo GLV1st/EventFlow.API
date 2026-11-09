@@ -14,6 +14,20 @@ public interface ITenantSecurityService
         string clientSecret);
 
     Task<string?> ValidateAccessTokenAsync(string accessToken);
+    Task<string> GenerateSupplierActivationKeyAsync(string label);
+    Task<WebsiteActivationResult?> ActivateWebsiteAsync(string key, string siteUrl, string siteName);
+    Task<OwnerRegistrationResult?> RegisterOwnerAsync(string code, string displayName,
+        string email, string password);
+    Task<UserLoginResult?> LoginUserAsync(string tenantId, string email, string password);
+    Task<UserPrincipal?> ValidateUserAccessTokenAsync(string accessToken);
+    Task RevokeUserAccessTokenAsync(string accessToken);
+    Task<InvitationCreatedResult> CreateUserInvitationAsync(UserPrincipal actor, string email, string displayName, string role);
+    Task<UserLoginResult?> AcceptUserInvitationAsync(string invitationToken, string displayName, string password);
+    Task<IReadOnlyList<ManagedUser>> ListTenantUsersAsync(string tenantId);
+    Task<IReadOnlyList<PendingInvitation>> ListTenantInvitationsAsync(string tenantId);
+    Task<bool> ChangeUserRoleAsync(UserPrincipal actor, string targetUserId, string role);
+    Task<bool> DeactivateTenantUserAsync(UserPrincipal actor, string targetUserId);
+    Task<bool> RevokeUserInvitationAsync(UserPrincipal actor, string invitationToken);
 }
 
 public record RegistrationCodeResult(
@@ -29,3 +43,15 @@ public record AccessTokenResult(
     string AccessToken,
     string TokenType,
     int ExpiresIn);
+public record WebsiteActivationResult(string TenantId, string ClientId, string ClientSecret, string AppConnectionCode);
+
+public record OwnerRegistrationResult(string TenantId, string SiteName, string SiteUrl,
+    string UserId, string DisplayName, string Email, string Role, string AccessToken,
+    string TokenType, int ExpiresIn);
+public record UserLoginResult(string TenantId, string UserId, string DisplayName,
+    string Email, string Role, string AccessToken, string TokenType, int ExpiresIn);
+public record UserPrincipal(string TenantId, string UserId, string Email, string Role);
+
+public record InvitationCreatedResult(string InvitationToken, string Email, string DisplayName, string Role, DateTimeOffset CreatedAt);
+public record ManagedUser(string UserId, string Email, string DisplayName, string Role, string Status, DateTimeOffset? CreatedAt);
+public record PendingInvitation(string Email, string DisplayName, string Role, DateTimeOffset? CreatedAt);

@@ -1,4 +1,4 @@
-﻿using Azure;
+using Azure;
 using Azure.Data.Tables;
 
 namespace EventFlow.Storage.Entities;
@@ -17,6 +17,13 @@ public class TenantRegistryEntity : ITableEntity
     public string? ClientId { get; set; }
     public string? SecretHash { get; set; }
     public string? TokenHash { get; set; }
+    public string? CodeHash { get; set; }
+    public string? OwnerEmail { get; set; }
+    public string? UserId { get; set; }
+    public string? Email { get; set; }
+    public string? DisplayName { get; set; }
+    public string? PasswordHash { get; set; }
+    public string? Role { get; set; }
 
     public string? Status { get; set; }
 

@@ -1,6 +1,7 @@
 
 using Azure.Monitor.OpenTelemetry.Exporter;
 using EventFlow.Api.Security;
+using EventFlow.Api.Services;
 using EventFlow.Core.Interfaces;
 using EventFlow.Core.Services;
 using EventFlow.Storage.Interfaces;
@@ -53,6 +54,12 @@ builder.Services.AddSingleton<
 builder.Services.AddSingleton<
     ITenantRegistryRepository,
     TenantRegistryRepository>();
+
+// =====================================
+// TICKETPILOT EMAIL
+// =====================================
+
+builder.Services.AddSingleton<TicketPilotEmailService>();
 
 // =====================================
 // TENANT SECURITY
