@@ -41,6 +41,7 @@ public interface ITenantRegistryRepository
         string codeHash, string tenantId, string userId, string email,
         string displayName, string passwordHash);
     Task<TenantRegistryEntity?> GetUserAsync(string tenantId, string userId);
+    Task<List<TenantRegistryEntity>> FindUsersByEmailAsync(string email);
     Task CreateUserAccessTokenAsync(string tokenHash, string tenantId, string userId,
         string email, string role, DateTimeOffset expiresAt);
     Task<TenantRegistryEntity?> GetUserAccessTokenAsync(string tokenHash);
