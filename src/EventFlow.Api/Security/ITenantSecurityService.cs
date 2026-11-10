@@ -29,7 +29,9 @@ public interface ITenantSecurityService
         string code,
         string displayName,
         string email,
-        string password);
+        string password,
+        string organisationName,
+        string shortCode);
 
     // Finds the active organisations associated with an email address.
     Task<IReadOnlyList<OrganisationLoginOption>> FindOrganisationsByEmailAsync(
@@ -39,6 +41,10 @@ public interface ITenantSecurityService
         string tenantId,
         string email,
         string password);
+
+    Task<IReadOnlyList<PasswordResetRequestResult>> RequestPasswordResetAsync(string email);
+
+    Task<bool> CompletePasswordResetAsync(string resetToken, string newPassword);
 
     Task<UserPrincipal?> ValidateUserAccessTokenAsync(string accessToken);
 
@@ -117,7 +123,8 @@ public record UserLoginResult(
 
 public record OrganisationLoginOption(
     string TenantId,
-    string OrganisationName);
+    string OrganisationName,
+    string? ShortCode = null);
 
 public record UserPrincipal(
     string TenantId,
@@ -151,3 +158,9 @@ public record PendingInvitation(
     string DisplayName,
     string Role,
     DateTimeOffset? CreatedAt);
+
+public record PasswordResetRequestResult(
+    string Email,
+    string DisplayName,
+    string OrganisationName,
+    string ResetToken);

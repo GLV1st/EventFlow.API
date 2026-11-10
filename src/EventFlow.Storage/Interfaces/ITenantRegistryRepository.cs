@@ -39,9 +39,11 @@ public interface ITenantRegistryRepository
     Task<TenantRegistryEntity?> GetPendingTenantForAppCodeAsync(string codeHash);
     Task<TenantRegistryEntity?> RedeemAppConnectionCodeAndCreateOwnerAsync(
         string codeHash, string tenantId, string userId, string email,
-        string displayName, string passwordHash);
+        string displayName, string passwordHash, string organisationName, string shortCode);
     Task<TenantRegistryEntity?> GetUserAsync(string tenantId, string userId);
     Task<List<TenantRegistryEntity>> FindUsersByEmailAsync(string email);
+    Task CreatePasswordResetTokenAsync(string tokenHash, string tenantId, string userId, string email, DateTimeOffset expiresAt);
+    Task<bool> ResetPasswordAsync(string tokenHash, string passwordHash);
     Task CreateUserAccessTokenAsync(string tokenHash, string tenantId, string userId,
         string email, string role, DateTimeOffset expiresAt);
     Task<TenantRegistryEntity?> GetUserAccessTokenAsync(string tokenHash);

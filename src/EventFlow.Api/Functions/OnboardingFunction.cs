@@ -111,12 +111,14 @@ public class OnboardingFunction
             string.IsNullOrWhiteSpace(body.Code) ||
             string.IsNullOrWhiteSpace(body.DisplayName) ||
             string.IsNullOrWhiteSpace(body.Email) ||
-            string.IsNullOrWhiteSpace(body.Password))
+            string.IsNullOrWhiteSpace(body.Password) ||
+            string.IsNullOrWhiteSpace(body.OrganisationName) ||
+            string.IsNullOrWhiteSpace(body.ShortCode))
         {
             return await Error(
                 req,
                 HttpStatusCode.BadRequest,
-                "Connection code, name, email and password are required.");
+                "Connection code, organisation name, short code, name, email and password are required.");
         }
 
         if (body.Password.Length < 12)
@@ -131,7 +133,9 @@ public class OnboardingFunction
             body.Code,
             body.DisplayName,
             body.Email,
-            body.Password);
+            body.Password,
+            body.OrganisationName,
+            body.ShortCode);
 
         if (result == null)
         {
@@ -210,6 +214,69 @@ public class OnboardingFunction
             organisations
         });
 
+        return response;
+    }
+
+    // =========================================
+    // REQUEST PASSWORD RESET
+    // Always returns the same response to avoid disclosing registered addresses.
+    // =========================================
+
+    [Function("RequestPasswordReset")]
+    public async Task<HttpResponseData> RequestPasswordReset(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "app/password/forgot")] HttpRequestData req)
+    {
+        var body = await req.ReadFromJsonAsync<PasswordResetRequest>();
+        if (body == null || string.IsNullOrWhiteSpace(body.Email))
+            return await Error(req, HttpStatusCode.BadRequest, "Email address is required.");
+
+        try
+        {
+            var requests = await _security.RequestPasswordResetAsync(body.Email);
+            foreach (var item in requests)
+            {
+                try
+                {
+                    await _email.SendPasswordResetAsync(
+                        item.Email, item.DisplayName, item.OrganisationName, item.ResetToken);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"TicketPilot password reset email failed: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"TicketPilot password reset request failed: {ex.Message}");
+        }
+
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(new
+        {
+            success = true,
+            message = "If an active TicketPilot account exists for that email address, a password reset link will be sent shortly."
+        });
+        return response;
+    }
+
+    [Function("CompletePasswordReset")]
+    public async Task<HttpResponseData> CompletePasswordReset(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "app/password/reset")] HttpRequestData req)
+    {
+        var body = await req.ReadFromJsonAsync<CompletePasswordResetRequest>();
+        if (body == null || string.IsNullOrWhiteSpace(body.ResetToken) ||
+            string.IsNullOrWhiteSpace(body.Password))
+            return await Error(req, HttpStatusCode.BadRequest, "Reset link and new password are required.");
+        if (body.Password.Length < 12 || body.Password.Length > 256)
+            return await Error(req, HttpStatusCode.BadRequest, "Choose a password with at least 12 characters.");
+
+        var success = await _security.CompletePasswordResetAsync(body.ResetToken, body.Password);
+        if (!success)
+            return await Error(req, HttpStatusCode.BadRequest, "This password reset link is invalid, expired or has already been used. Request a new link.");
+
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(new { success = true, message = "Your password has been reset. Please sign in using your new password." });
         return response;
     }
 
@@ -767,6 +834,19 @@ public class OwnerRegistrationRequest
     public string? Code { get; set; }
     public string? DisplayName { get; set; }
     public string? Email { get; set; }
+    public string? Password { get; set; }
+    public string? OrganisationName { get; set; }
+    public string? ShortCode { get; set; }
+}
+
+public class PasswordResetRequest
+{
+    public string? Email { get; set; }
+}
+
+public class CompletePasswordResetRequest
+{
+    public string? ResetToken { get; set; }
     public string? Password { get; set; }
 }
 

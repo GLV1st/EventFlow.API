@@ -13,6 +13,7 @@ public class TenantRegistryEntity : ITableEntity
     public string? TenantId { get; set; }
     public string? SiteUrl { get; set; }
     public string? Name { get; set; }
+    public string? ShortCode { get; set; }
 
     public string? ClientId { get; set; }
     public string? SecretHash { get; set; }

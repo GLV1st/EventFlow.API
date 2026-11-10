@@ -338,7 +338,9 @@ public class TenantRegistryRepository : ITenantRegistryRepository
         string userId,
         string email,
         string displayName,
-        string passwordHash)
+        string passwordHash,
+        string organisationName,
+        string shortCode)
     {
         await EnsureTableAsync();
 
@@ -372,6 +374,8 @@ public class TenantRegistryRepository : ITenantRegistryRepository
         code.RedeemedAt = now;
         tenant.Status = "ACTIVE";
         tenant.OwnerEmail = email;
+        tenant.Name = organisationName;
+        tenant.ShortCode = shortCode;
 
         var owner = new TenantRegistryEntity
         {
@@ -437,6 +441,75 @@ public class TenantRegistryRepository : ITenantRegistryRepository
         }
 
         return users;
+    }
+
+    public async Task CreatePasswordResetTokenAsync(
+        string tokenHash, string tenantId, string userId, string email, DateTimeOffset expiresAt)
+    {
+        await EnsureTableAsync();
+        await _table.AddEntityAsync(new TenantRegistryEntity
+        {
+            PartitionKey = Partition,
+            RowKey = $"PWDRESET_{tokenHash}",
+            RecordType = "PASSWORD_RESET_TOKEN",
+            TenantId = tenantId,
+            UserId = userId,
+            Email = email,
+            Status = "PENDING",
+            TokenHash = tokenHash,
+            CreatedAt = DateTimeOffset.UtcNow,
+            ExpiresAt = expiresAt
+        });
+    }
+
+    public async Task<bool> ResetPasswordAsync(string tokenHash, string passwordHash)
+    {
+        await EnsureTableAsync();
+        var tokenResult = await _table.GetEntityIfExistsAsync<TenantRegistryEntity>(
+            Partition, $"PWDRESET_{tokenHash}");
+        if (!tokenResult.HasValue || tokenResult.Value is null) return false;
+
+        var reset = tokenResult.Value;
+        if (reset.RecordType != "PASSWORD_RESET_TOKEN" || reset.Status != "PENDING" ||
+            !reset.ExpiresAt.HasValue || reset.ExpiresAt.Value <= DateTimeOffset.UtcNow ||
+            string.IsNullOrWhiteSpace(reset.TenantId) || string.IsNullOrWhiteSpace(reset.UserId))
+            return false;
+
+        var userResult = await _table.GetEntityIfExistsAsync<TenantRegistryEntity>(
+            Partition, $"USER_{reset.TenantId}_{reset.UserId}");
+        if (!userResult.HasValue || userResult.Value is null) return false;
+
+        var user = userResult.Value;
+        if (user.RecordType != "USER" || user.Status != "ACTIVE" ||
+            user.TenantId != reset.TenantId || user.Email != reset.Email) return false;
+
+        user.PasswordHash = passwordHash;
+        reset.Status = "REDEEMED";
+        reset.RedeemedAt = DateTimeOffset.UtcNow;
+
+        try
+        {
+            await _table.SubmitTransactionAsync([
+                new TableTransactionAction(TableTransactionActionType.UpdateReplace, user),
+                new TableTransactionAction(TableTransactionActionType.UpdateReplace, reset)
+            ]);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404 || ex.Status == 409 || ex.Status == 412)
+        {
+            return false;
+        }
+
+        // A password change invalidates every active session for this user.
+        await foreach (var access in _table.QueryAsync<TenantRegistryEntity>(
+            e => e.PartitionKey == Partition && e.RecordType == "USER_ACCESS_TOKEN" &&
+                 e.TenantId == reset.TenantId && e.UserId == reset.UserId && e.Status == "ACTIVE"))
+        {
+            access.Status = "REVOKED";
+            try { await _table.UpdateEntityAsync(access, access.ETag, TableUpdateMode.Replace); }
+            catch (RequestFailedException ex) when (ex.Status == 404 || ex.Status == 412) { }
+        }
+
+        return true;
     }
 
     public async Task CreateUserAccessTokenAsync(

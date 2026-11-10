@@ -65,6 +65,12 @@ public class EventStatsFunction
             return req.CreateResponse(HttpStatusCode.Unauthorized);
         }
 
+        if (!new[] { "OWNER", "ADMINISTRATOR", "EVENT_MANAGER" }.Contains(
+            access.Role, StringComparer.OrdinalIgnoreCase))
+        {
+            return req.CreateResponse(HttpStatusCode.Forbidden);
+        }
+
         var tenantId = access.TenantId;
 
         // Retrieve tickets belonging only to this tenant and event.

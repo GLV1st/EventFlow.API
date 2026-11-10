@@ -339,15 +339,22 @@ public class TenantSecurityService : ITenantSecurityService
         string code,
         string displayName,
         string email,
-        string password)
+        string password,
+        string organisationName,
+        string shortCode)
     {
         if (string.IsNullOrWhiteSpace(code) ||
             string.IsNullOrWhiteSpace(displayName) ||
             string.IsNullOrWhiteSpace(email) ||
             string.IsNullOrWhiteSpace(password) ||
+            string.IsNullOrWhiteSpace(organisationName) ||
+            string.IsNullOrWhiteSpace(shortCode) ||
             password.Length < 12 ||
             password.Length > 256 ||
-            displayName.Trim().Length > 120)
+            displayName.Trim().Length > 120 ||
+            organisationName.Trim().Length > 120 ||
+            shortCode.Trim().Length < 2 || shortCode.Trim().Length > 20 ||
+            !System.Text.RegularExpressions.Regex.IsMatch(shortCode.Trim(), "^[A-Za-z0-9-]{2,20}$"))
         {
             return null;
         }
@@ -384,7 +391,9 @@ public class TenantSecurityService : ITenantSecurityService
             userId,
             normalizedEmail,
             displayName.Trim(),
-            passwordHash);
+            passwordHash,
+            organisationName.Trim(),
+            shortCode.Trim().ToUpperInvariant());
 
         if (tenant == null)
             return null;
@@ -471,7 +480,8 @@ public class TenantSecurityService : ITenantSecurityService
             organisations.Add(
                 new OrganisationLoginOption(
                     tenantId,
-                    tenant.Name ?? "Organisation"));
+                    tenant.Name ?? "Organisation",
+                    tenant.ShortCode));
         }
 
         return organisations;
@@ -539,6 +549,45 @@ public class TenantSecurityService : ITenantSecurityService
             token,
             "Bearer",
             (int)AccessTokenLifetime.TotalSeconds);
+    }
+
+    // =========================================
+    // PASSWORD RESET
+    // =========================================
+
+    public async Task<IReadOnlyList<PasswordResetRequestResult>> RequestPasswordResetAsync(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return Array.Empty<PasswordResetRequestResult>();
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        if (normalizedEmail.Length > 254 || !normalizedEmail.Contains('@') ||
+            normalizedEmail.StartsWith('@') || normalizedEmail.EndsWith('@'))
+            return Array.Empty<PasswordResetRequestResult>();
+
+        var users = await _repository.FindUsersByEmailAsync(normalizedEmail);
+        var results = new List<PasswordResetRequestResult>();
+        foreach (var user in users)
+        {
+            if (user.RecordType != "USER" || user.Status != "ACTIVE" ||
+                string.IsNullOrWhiteSpace(user.TenantId) || string.IsNullOrWhiteSpace(user.UserId)) continue;
+            var tenant = await _repository.GetTenantAsync(user.TenantId);
+            if (tenant == null || tenant.RecordType != "TENANT" || tenant.Status != "ACTIVE") continue;
+
+            var token = "TP-RESET-" + GenerateRandomValue(32);
+            await _repository.CreatePasswordResetTokenAsync(
+                HashValue(token), user.TenantId, user.UserId, normalizedEmail,
+                DateTimeOffset.UtcNow.AddMinutes(30));
+            results.Add(new PasswordResetRequestResult(
+                normalizedEmail, user.DisplayName ?? "TicketPilot user", tenant.Name ?? "your organisation", token));
+        }
+        return results;
+    }
+
+    public async Task<bool> CompletePasswordResetAsync(string resetToken, string newPassword)
+    {
+        if (string.IsNullOrWhiteSpace(resetToken) || string.IsNullOrWhiteSpace(newPassword) ||
+            newPassword.Length < 12 || newPassword.Length > 256) return false;
+        return await _repository.ResetPasswordAsync(
+            HashValue(resetToken.Trim()), HashPassword(newPassword));
     }
 
     // =========================================

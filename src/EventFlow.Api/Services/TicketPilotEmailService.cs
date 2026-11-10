@@ -48,6 +48,30 @@ public sealed class TicketPilotEmailService
         await SendAsync(email, subject, html, plain);
     }
 
+    public async Task SendPasswordResetAsync(string email, string displayName, string organisationName, string token)
+    {
+        var link = $"{_appUrl}/auth.html?resetToken={Uri.EscapeDataString(token)}";
+        var subject = "Reset your TicketPilot password";
+        var safeName = Escape(displayName);
+        var safeOrganisation = Escape(organisationName);
+        var safeLink = Escape(link);
+        var html = $"""
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#172033">
+              <div style="background:#123b68;padding:24px;color:#fff"><h1 style="margin:0">TicketPilot</h1></div>
+              <div style="padding:28px">
+                <h2>Password reset requested</h2>
+                <p>Hello {safeName},</p>
+                <p>A password reset was requested for your account with <strong>{safeOrganisation}</strong>.</p>
+                <p style="margin:30px 0"><a href="{safeLink}" style="background:#1769c2;color:#fff;text-decoration:none;padding:14px 22px;border-radius:6px;display:inline-block">Reset password</a></p>
+                <p>This link expires in 30 minutes and can only be used once.</p>
+                <p>If you did not request this, you can safely ignore this email. Your password will not change.</p>
+              </div>
+            </div>
+            """;
+        var plain = $"Hello {displayName},\n\nA password reset was requested for your TicketPilot account with {organisationName}.\nReset your password within 30 minutes using this one-time link:\n{link}\n\nIf you did not request this, ignore this email.";
+        await SendAsync(email, subject, html, plain);
+    }
+
     public async Task SendOwnerWelcomeAsync(string email, string displayName, string organisationName)
     {
         var subject = "Welcome to TicketPilot";
